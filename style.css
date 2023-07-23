@@ -1,0 +1,108 @@
+@font-face {
+  font-family: "JPN30";
+  src: url("JPN30.woff") format("woff");
+}
+
+@font-face {
+  font-family: "ANK30";
+  src: url("ANK30.woff") format("woff");
+}
+
+:root {
+  font-family: "ANK30", monospace;
+  background-color: #f0f0f0;
+  color: #2B2B46;
+
+  --onboard-font-family-normal: "ANK30", monospace;
+  --onboard-modal-background: #f0f0f0;
+  --onboard-connect-sidebar-background: #ff8e0c;
+  --onboard-modal-backdrop: #e0e0e0;
+  --onboard-modal-box-shadow: 5px 5px #a1a09d;
+  --onboard-modal-border-radius: 1px;
+  --onboard-font-size-5: 1.5rem;
+  --onboard-font-size-6: 1.1rem;
+  --onboard-font-size-7: 1rem;
+  --onboard-wallet-button-border-radius: 2px;
+
+  --account-center-border-radius: 2px;
+  --account-center-app-btn-background: #f08000;
+  --account-center-minimized-background: #e0e0e0;
+}
+
+body {
+  margin: auto;
+  max-width: 800px;
+}
+
+h1 {
+  color: #f08000;
+  font-family: "JPN30", monospace;
+  letter-spacing: 0.5rem;
+  text-decoration: underline 4px;
+  text-align: center;
+  font-size: 4.5em;
+  /*display: block;
+  padding: 10px 15px;
+  border: 3px dotted;*/
+}
+
+p, span {
+  text-align: center;
+  font-size: 2.5em;
+}
+
+label, input {
+  font-family: "ANK30", monospace;
+  font-size: 2.5em;
+  text-align: center;
+}
+
+button {
+  font-family: "ANK30", monospace;
+  font-size: 2em;
+  border-radius: 2px;
+  padding: 20px 40px;
+  margin: 10px;
+  background-color: #f08000;
+  box-shadow: 2px 2px #a1a09d;
+}
+
+button:hover {
+  text-decoration: underline 2px;
+  box-shadow: 5px 5px #a1a09d;
+}
+
+.buttons {
+  text-align: center;
+}
+
+#buttonSection {
+  margin-top: 20px;
+}
+
+dialog {
+  max-width: 600px;
+  background-color: #e0e0e0;
+  overflow-wrap: break-word;
+}
+
+dialog button {
+  margin: auto;
+}
+
+dialog::backdrop {
+  background: #f0f0f0;
+}
+
+table {
+  font-size: 2em;
+  border-collapse: collapse; /* Necessary for border styling */
+  background-color: #e0e0e0;
+  margin: 20px auto;
+}
+
+th, td {
+  border: 1px solid #2B2B46;
+  padding: 10px;
+  text-align: left;
+}
