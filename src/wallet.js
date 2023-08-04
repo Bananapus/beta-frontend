@@ -6,6 +6,7 @@ import {
   mainnet,
   connect,
   disconnect,
+  getAccount,
 } from "@wagmi/core";
 import { goerli } from "@wagmi/core/chains";
 import { publicProvider } from "@wagmi/core/providers/public";
@@ -36,7 +37,7 @@ function initWalletClient(connectors) {
 
   connectors.push(new InjectedConnector({ chains }));
   connectors.push(new SafeConnector({ chains }));
-  // connectors.push(new LedgerConnector({ chains, projectId }));
+  connectors.push(new LedgerConnector({ chains, projectId }));
   connectors.push(
     new WalletConnectConnector({
       chains,
@@ -52,52 +53,63 @@ function initWalletClient(connectors) {
   });
 
   initialized = true;
-  connectors.forEach((c) => console.log(c.name, c));
 }
 
-async function connectMetaMask(chainId) {
-  await connect({
-    chainId,
-    connector: connectors.find((c) => c.name === "MetaMask"),
-  });
+const connectButton = document.getElementById("open-connect-modal");
+const walletAddressSpan = document.getElementById("wallet-address");
+const connectModal = document.getElementById("connect-modal");
+const closeModalButton = document.getElementById("close-modal");
+closeModalButton.addEventListener("click", () => connectModal.close());
+
+export function updateInterface() {
+  const account = getAccount();
+
+  if (account && account.isConnected) {
+    connectButton.textContent = "Disconnect";
+    connectButton.onclick = disconnectWallet;
+    walletAddressSpan.textContent = account.address;
+  } else {
+    connectButton.textContent = "Connect";
+    connectButton.onclick = () => connectModal.showModal();
+    walletAddressSpan.textContent = "";
+  }
 }
 
-async function connectWalletConnect(chainId) {
-  await connect({
-    chainId,
-    connector: connectors.find((c) => c.name === "WalletConnect"),
-  });
-}
-
-async function connectSafe(chainId) {
-  await connect({
-    chainId,
-    connector: connectors.find((c) => c.name === "Safe"),
-  });
-}
-
-async function connectLedger(chainId) {
-  await connect({
-    chainId,
-    connector: connectors.find((c) => c.name === "Ledger"),
-  });
+async function disconnectWallet() {
+  await disconnect();
+  updateInterface();
 }
 
 /**
- * @param {number} chainId
- * @param {"MetaMask" | "WalletConnect" | "Safe" | "Ledger"} walletType
+ * Connects a wallet
+ *
+ * @typedef {"MetaMask" | "WalletConnect" | "Safe" | "Ledger"} ConnectorName
+ *
+ * @param {number} chainId The chain ID
+ * @param {ConnectorName} connectorName The wallet's type (the connector's name)
+ *
+ * @returns {Promise<void>} Promise representing the connection process
  */
-async function connectWallet(chainId, walletType) {
-  await connect({
-    chainId,
-    connector: connectors.find((c) => c.name === walletType),
-  });
+async function connectWallet(chainId, connectorName) {
+  try {
+    connectModal.close();
+    await connect({
+      chainId,
+      connector: connectors.find((c) => c.name === connectorName),
+    });
+    updateInterface();
+  } catch (error) {
+    if (error.name === "ConnectorAlreadyConnectedError") updateInterface();
+    else {
+      throw error;
+    }
+  }
 }
 
-export const wallet = {
-  connectMetaMask,
-  connectWalletConnect,
-  connectLedger,
-  connectSafe,
-  disconnect,
-};
+connectors
+  .map((c) => c.name)
+  .forEach((wallet) =>
+    document
+      .getElementById(`connect-${wallet.toLowerCase()}`)
+      .addEventListener("click", () => connectWallet(5, wallet))
+  );

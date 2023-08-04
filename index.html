@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -6,8 +6,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bananapus Frontend</title>
   </head>
+  <nav>
+    <ul>
+      <li><a href="#/">Home</a></li>
+      <li><a href="#/about">About</a></li>
+      <li><a href="#/stake">Stake</a></li>
+      <li><a href="#/collect">Collect</a></li>
+    </ul>
+    <span id="wallet-address"></span>
+    <button id="open-connect-modal">Connect</button>
+  </nav>
+  <dialog id="connect-modal">
+    <h2>Connect your wallet</h2>
+    <span id="close-modal">x</span>
+    <button id="connect-metamask">Metamask</button>
+    <button id="connect-walletconnect">WalletConnect</button>
+    <button id="connect-ledger">Ledger</button>
+    <button id="connect-safe">Safe</button>
+  </dialog>
   <body>
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
   </body>
+  <footer>
+    <p>© 2023 Bananapus</p>
+    <ul>
+      <li><a href="https://discord.gg/ErQYmth4dS">Discord</a></li>
+      <li><a href="https://juicebox.money/">Juicebox</a></li>
+    </ul>
+  </footer>
 </html>
