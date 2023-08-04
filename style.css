@@ -11,27 +11,42 @@
 :root {
   font-family: "ANK30", monospace;
   background-color: #f0f0f0;
-  color: #2B2B46;
-
-  --onboard-font-family-normal: "ANK30", monospace;
-  --onboard-modal-background: #f0f0f0;
-  --onboard-connect-sidebar-background: #ff8e0c;
-  --onboard-modal-backdrop: #e0e0e0;
-  --onboard-modal-box-shadow: 5px 5px #a1a09d;
-  --onboard-modal-border-radius: 1px;
-  --onboard-font-size-5: 1.5rem;
-  --onboard-font-size-6: 1.1rem;
-  --onboard-font-size-7: 1rem;
-  --onboard-wallet-button-border-radius: 2px;
-
-  --account-center-border-radius: 2px;
-  --account-center-app-btn-background: #f08000;
-  --account-center-minimized-background: #e0e0e0;
+  color: #2b2b46;
 }
 
-body {
-  margin: auto;
-  max-width: 800px;
+body > div#app {
+  padding: 0 30px;
+  min-height: calc(100vh - 200px);
+}
+
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+nav ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0 20px;
+  display: flex;
+}
+
+nav li {
+  margin: 0 10px;
+  font-size: 1.8em;
+}
+
+nav a {
+  color: #2b2b46;
+  text-decoration: none;
+}
+
+nav a:hover {
+  text-decoration: underline;
 }
 
 h1 {
@@ -39,29 +54,20 @@ h1 {
   font-family: "JPN30", monospace;
   letter-spacing: 0.5rem;
   text-decoration: underline 4px;
-  text-align: center;
-  font-size: 4.5em;
-  /*display: block;
-  padding: 10px 15px;
-  border: 3px dotted;*/
+  font-size: 3.5em;
+  margin-top: 0px;
 }
 
-p, span {
-  text-align: center;
-  font-size: 2.5em;
-}
-
-label, input {
-  font-family: "ANK30", monospace;
-  font-size: 2.5em;
-  text-align: center;
+p,
+span {
+  font-size: 2em;
 }
 
 button {
   font-family: "ANK30", monospace;
   font-size: 2em;
   border-radius: 2px;
-  padding: 20px 40px;
+  padding: 10px 20px;
   margin: 10px;
   background-color: #f08000;
   box-shadow: 2px 2px #a1a09d;
@@ -72,37 +78,29 @@ button:hover {
   box-shadow: 5px 5px #a1a09d;
 }
 
-.buttons {
-  text-align: center;
-}
-
-#buttonSection {
-  margin-top: 20px;
-}
-
 dialog {
-  max-width: 600px;
   background-color: #e0e0e0;
-  overflow-wrap: break-word;
 }
 
-dialog button {
-  margin: auto;
+footer {
+  display: flex;
+  justify-content: space-evenly;
+  align-items: center;
 }
 
-dialog::backdrop {
-  background: #f0f0f0;
+footer li {
+  display: inline;
+  margin: 0 10px;
 }
 
-table {
-  font-size: 2em;
-  border-collapse: collapse; /* Necessary for border styling */
-  background-color: #e0e0e0;
-  margin: 20px auto;
+footer a {
+  color: royalblue;
+  text-decoration: none;
+  font-size: 1.5em;
 }
 
-th, td {
-  border: 1px solid #2B2B46;
-  padding: 10px;
-  text-align: left;
+#wallet-address {
+  font-size: 1.5em;
+  font-style: italic;
+  color: lightslategray;
 }

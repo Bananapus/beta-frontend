@@ -1,8 +1,7 @@
-import "/style.css";
-import { updateInterface } from "./wallet.js";
 import { router } from "./router.js";
+import { updateWalletStatus } from "./wallet.js";
 
 window.addEventListener("DOMContentLoaded", () => {
   router();
-  updateInterface();
+  updateWalletStatus();
 });

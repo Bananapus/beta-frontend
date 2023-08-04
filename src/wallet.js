@@ -61,13 +61,13 @@ const connectModal = document.getElementById("connect-modal");
 const closeModalButton = document.getElementById("close-modal");
 closeModalButton.addEventListener("click", () => connectModal.close());
 
-export function updateInterface() {
+export function updateWalletStatus() {
   const account = getAccount();
 
   if (account && account.isConnected) {
     connectButton.textContent = "Disconnect";
     connectButton.onclick = disconnectWallet;
-    walletAddressSpan.textContent = account.address;
+    walletAddressSpan.textContent = account.address.substring(0, 6) + "…";
   } else {
     connectButton.textContent = "Connect";
     connectButton.onclick = () => connectModal.showModal();
@@ -77,7 +77,7 @@ export function updateInterface() {
 
 async function disconnectWallet() {
   await disconnect();
-  updateInterface();
+  updateWalletStatus();
 }
 
 /**
@@ -97,9 +97,9 @@ async function connectWallet(chainId, connectorName) {
       chainId,
       connector: connectors.find((c) => c.name === connectorName),
     });
-    updateInterface();
+    updateWalletStatus();
   } catch (error) {
-    if (error.name === "ConnectorAlreadyConnectedError") updateInterface();
+    if (error.name === "ConnectorAlreadyConnectedError") updateWalletStatus();
     else {
       throw error;
     }
