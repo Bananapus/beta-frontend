@@ -2,7 +2,7 @@ export function About() {
   return `
 <h1>About</h1>
 <p>
-  Bananapus was
+  <span class="bananapus">bananapus</span> was
   <a href="https://www.jbdao.org/s/juicebox/368">funded by JuiceboxDAO</a> to
   develop and implement solutions for cross-chain Juicebox-based organizations,
   onchain governance based on staked positions, and new token distribution
@@ -24,10 +24,6 @@ export function About() {
   Bananapus will reserve a percentage its project's tokens to be claimed by
   stakers over a vesting period. Bananapus members can begin their vesting
   periods and collect their rewards in the <a href="#/collect">Collect</a> page.
-</p>
-<p>
-  To learn more or to get involved, join our
-  <a href="https://discord.gg/ErQYmth4dS">Discord server</a>.
 </p>
 `;
 }

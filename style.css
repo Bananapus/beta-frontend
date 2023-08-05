@@ -39,7 +39,7 @@ nav ul {
 
 nav li {
   margin: 0 10px;
-  font-size: 1.8em;
+  font-size: 1.8rem;
 }
 
 nav a {
@@ -56,18 +56,18 @@ h1 {
   font-family: "JPN30", monospace;
   letter-spacing: 0.5rem;
   text-decoration: underline 4px;
-  font-size: 3.5em;
+  font-size: 3.5rem;
   margin-top: 0px;
 }
 
 p,
 span {
-  font-size: 2em;
+  font-size: 2rem;
 }
 
 button {
   font-family: "ANK30", monospace;
-  font-size: 2em;
+  font-size: 2rem;
   border-radius: 2px;
   padding: 10px 20px;
   margin: 10px;
@@ -98,11 +98,21 @@ footer li {
 footer a {
   color: royalblue;
   text-decoration: none;
-  font-size: 1.5em;
+  font-size: 1.5rem;
 }
 
 #wallet-address {
-  font-size: 1.5em;
+  font-size: 1.5rem;
   font-style: italic;
   color: lightslategray;
+}
+
+.bananapus {
+  color: #F08000;
+  text-decoration: underline;
+  font-size: 2.8rem;
+}
+
+li {
+  font-size: 2rem;
 }
