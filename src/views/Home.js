@@ -15,7 +15,7 @@ export const Home = {
   Ethereum L2 solutions for Juicebox organizations.
 </p>
 <div id="purchase-section">
-  <input id="eth-input" type="number" placeholder="Amount in ETH" />
+  <input id="eth-input" type="number" placeholder="ETH Amount" />
   <button id="buy-button" disabled>Buy NANA</button>
 </div>
 <span id="status-message" style="color: red;"></span>
@@ -50,7 +50,7 @@ export const Home = {
       button.disabled = true;
       statusMessage.textContent = "Connect your wallet to buy NANA.";
       statusMessage.style.color = "#F08000";
-      return
+      return;
     }
 
     // TODO: Fetch this from contracts.
@@ -61,14 +61,15 @@ export const Home = {
         address: account.address,
       });
     } catch {
-      console.log("Could not fetch wallet balance.");
+      console.error("Could not fetch wallet balance.");
     }
 
     const updateEstimate = () => {
       const inputEth = parseFloat(input.value);
-      button.textContent = isNaN(inputEth) || inputEth == 0
-        ? "Buy NANA"
-        : `Buy ${(inputEth * exchangeRate).toLocaleString()} NANA`;
+      button.textContent =
+        isNaN(inputEth) || inputEth == 0
+          ? "Buy NANA"
+          : `Buy ${(inputEth * exchangeRate).toLocaleString()} NANA`;
     };
 
     const validateAmount = () => {
@@ -104,9 +105,7 @@ export const Home = {
         listener: async () => {
           try {
             // Buy NANA
-            const network = getNetwork();
             const value = parseEther(input.value);
-            console.log(value);
             const abi = [
               parseAbiItem(
                 "function pay(uint256 _projectId, uint256 _amount, address _token, address _beneficiary, uint256 _minReturnedTokens, bool _preferClaimedTokens, string _memo, bytes _metadata) payable returns (uint256)"
@@ -117,6 +116,13 @@ export const Home = {
             input.disabled = true;
             button.textContent = "Processing...";
             button.disabled = true;
+
+            const network = getNetwork();
+
+            if (network.chain.id !== (TESTNET ? 5 : 1))
+              await switchNetwork({
+                chainId: !TESTNET ? 1 : 5,
+              });
 
             const { hash } = await writeContract(
               !TESTNET

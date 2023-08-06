@@ -27,7 +27,7 @@ if (!initialized) initWalletClient(connectors);
 /** @param {Connector[]} connectors */
 function initWalletClient(connectors) {
   const { chains, publicClient, webSocketPublicClient } = configureChains(
-    [TESTNET ? goerli : mainnet],
+    [mainnet, goerli],
     [
       infuraProvider({
         apiKey: import.meta.env.VITE_INFURA_API_KEY,
