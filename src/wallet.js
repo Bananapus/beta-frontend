@@ -14,6 +14,7 @@ import { infuraProvider } from "@wagmi/core/providers/infura";
 import { WalletConnectConnector } from "@wagmi/connectors/walletConnect";
 import { SafeConnector } from "@wagmi/connectors/safe";
 import { LedgerConnector } from "@wagmi/connectors/ledger";
+import { TESTNET } from "./consts";
 
 const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
 let initialized = false;
@@ -26,7 +27,7 @@ if (!initialized) initWalletClient(connectors);
 /** @param {Connector[]} connectors */
 function initWalletClient(connectors) {
   const { chains, publicClient, webSocketPublicClient } = configureChains(
-    [mainnet, goerli],
+    [TESTNET ? goerli : mainnet],
     [
       infuraProvider({
         apiKey: import.meta.env.VITE_INFURA_API_KEY,

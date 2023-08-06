@@ -121,3 +121,12 @@ footer a {
 li {
   font-size: 2rem;
 }
+
+input {
+  font-family: "ANK30", monospace;
+  font-size: 2rem;
+  padding: 10px 20px;
+  background-color: #FFFFFF;
+  border: 1px solid #a1a09d;
+  border-radius: 2px;
+}

@@ -13,7 +13,9 @@ const routes = {
   "/collect": Collect,
 };
 
-export function router() {
+let cleanup = null;
+
+export async function router() {
   const path = window.location.hash.slice(1) || "/";
   /** @type {View} */
   const view = routes[path];
@@ -23,8 +25,13 @@ export function router() {
     return;
   }
 
+  if (cleanup && typeof cleanup === "function") {
+    cleanup();
+    cleanup = null;
+  }
+
   document.getElementById("app").innerHTML = view.render;
-  if(view.setup) view.setup()
+  if (view.setup) cleanup = await view.setup();
 }
 
 window.addEventListener("hashchange", router);

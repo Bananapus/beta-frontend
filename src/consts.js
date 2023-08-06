@@ -1,1 +1,1 @@
-export const LOCALHOST = true;
+export const TESTNET = true;

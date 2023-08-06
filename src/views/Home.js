@@ -1,3 +1,12 @@
+import { parseEther, formatEther, parseAbiItem } from "viem";
+import {
+  fetchBalance,
+  getAccount,
+  getNetwork,
+  writeContract,
+} from "@wagmi/core";
+import { TESTNET } from "../consts";
+
 export const Home = {
   render: `
 <h1>Bananapus</h1>
@@ -5,10 +14,15 @@ export const Home = {
   <span class="bananapus">bananapus</span> is developing onchain governance and
   Ethereum L2 solutions for Juicebox organizations.
 </p>
+<div id="purchase-section">
+  <input id="eth-input" type="number" placeholder="Amount in ETH" />
+  <button id="buy-button" disabled>Buy NANA</button>
+</div>
+<span id="status-message" style="color: red;"></span>
 <ul>
   <li>
-    Anyone can buy $NANA from our
-    <a href="https://juicebox.money/v2/p/488">Juicebox</a>.
+    Anyone can buy $NANA above (or on
+    <a href="https://juicebox.money/v2/p/488">Juicebox</a>).
   </li>
   <li>To learn more, read <a href="#/about">About</a>.</li>
   <li>
@@ -24,4 +38,147 @@ export const Home = {
   <a href="https://discord.gg/ErQYmth4dS">Discord server</a>.
 </p>
 `,
+  setup: async () => {
+    const account = getAccount();
+
+    const input = document.getElementById("eth-input");
+    const button = document.getElementById("buy-button");
+    const statusMessage = document.getElementById("status-message");
+
+    if (!account.isConnected) {
+      input.disabled = true;
+      button.disabled = true;
+      statusMessage.textContent = "Connect your wallet to buy NANA.";
+      statusMessage.style.color = "#F08000";
+      return
+    }
+
+    // TODO: Fetch this from contracts.
+    const exchangeRate = 700000;
+    let balance;
+    try {
+      balance = await fetchBalance({
+        address: account.address,
+      });
+    } catch {
+      console.log("Could not fetch wallet balance.");
+    }
+
+    const updateEstimate = () => {
+      const inputEth = parseFloat(input.value);
+      button.textContent = isNaN(inputEth) || inputEth == 0
+        ? "Buy NANA"
+        : `Buy ${(inputEth * exchangeRate).toLocaleString()} NANA`;
+    };
+
+    const validateAmount = () => {
+      const inputEth = parseEther(input.value || "0");
+      const parsedBalance = parseEther(formatEther(balance.value));
+
+      if (inputEth > parsedBalance) {
+        button.disabled = true;
+        statusMessage.style.color = "red";
+        statusMessage.textContent = "You don't have enough ETH for this.";
+      } else {
+        button.disabled = false;
+        statusMessage.textContent = "";
+      }
+    };
+
+    // Initial check
+    updateEstimate();
+    validateAmount();
+
+    const eventListeners = [
+      {
+        element: input,
+        type: "input",
+        listener: () => {
+          updateEstimate();
+          validateAmount();
+        },
+      },
+      {
+        element: button,
+        type: "click",
+        listener: async () => {
+          try {
+            // Buy NANA
+            const network = getNetwork();
+            const value = parseEther(input.value);
+            console.log(value);
+            const abi = [
+              parseAbiItem(
+                "function pay(uint256 _projectId, uint256 _amount, address _token, address _beneficiary, uint256 _minReturnedTokens, bool _preferClaimedTokens, string _memo, bytes _metadata) payable returns (uint256)"
+              ),
+            ];
+
+            input.value = "";
+            input.disabled = true;
+            button.textContent = "Processing...";
+            button.disabled = true;
+
+            const { hash } = await writeContract(
+              !TESTNET
+                ? {
+                    address: "0xFA391De95Fcbcd3157268B91d8c7af083E607A5C", // Mainnet JBETHPaymentTerminal3_1
+                    functionName: "pay",
+                    abi,
+                    chainId: 1,
+                    value,
+                    args: [
+                      BigInt(488),
+                      value,
+                      "0x000000000000000000000000000000000000EEEe",
+                      account.address,
+                      0,
+                      true,
+                      "Paid from https://bananapus.com",
+                      0x00,
+                    ],
+                  }
+                : {
+                    address: "0x0baCb87Cf7DbDdde2299D92673A938E067a9eb29", // Goerli JBETHPaymentTerminal3_1
+                    functionName: "pay",
+                    abi,
+                    chainId: 5,
+                    value,
+                    args: [
+                      BigInt(601),
+                      value,
+                      "0x000000000000000000000000000000000000EEEe",
+                      account.address,
+                      BigInt(0),
+                      true,
+                      "Paid from https://bananapus.com",
+                      "0x00",
+                    ],
+                  }
+            );
+            console.log(`Payment successful. Hash: ${hash}`);
+            statusMessage.style.color = "green";
+            statusMessage.textContent = "Payment successful!";
+          } catch (e) {
+            console.error(`Payment error: ${e}`);
+            statusMessage.style.color = "red";
+            statusMessage.textContent = "Payment failed. Please try again.";
+          } finally {
+            input.disabled = false;
+            button.disabled = false;
+            button.textContent = "Buy NANA";
+          }
+        },
+      },
+    ];
+
+    eventListeners.forEach((e) =>
+      e.element.addEventListener(e.type, e.listener)
+    );
+
+    return () => {
+      eventListeners.forEach((e) => {
+        e.element.removeEventListener(e.type, e.listener);
+      });
+    };
+  },
 };
