@@ -1,5 +1,5 @@
-export function About() {
-  return `
+export const About = {
+  render: `
 <h1>About</h1>
 <p>
   <span class="bananapus">bananapus</span> was
@@ -14,7 +14,7 @@ export function About() {
 </p>
 <p>
   Bananapus will deploy the Juicebox protocol on Ethereum layer 2 blockchains.
-  Bananapus (and its projects) will be governed onchain – on the
+  Bananapus (and its projects) will be governed onchain. On the
   <a href="#/stake">Stake</a> page, anyone can stake $NANA to claim Bananapus
   governance NFTs. The more $NANA someone stakes, and the longer they stake it
   for, the more voting power they have over Bananapus.
@@ -25,5 +25,5 @@ export function About() {
   vesting periods and collect their rewards on the
   <a href="#/collect">Collect</a> page.
 </p>
-`;
-}
+`,
+};

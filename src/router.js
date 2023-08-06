@@ -1,5 +1,11 @@
 import { Home, About, Error, Stake, Collect } from "./views/index.js";
 
+/**
+ * @typedef {Object} View
+ * @property {string} render - The HTML string to render for the view.
+ * @property {Function} [setup] - The function to invoke after the view is rendered. Optional.
+ */
+
 const routes = {
   "/": Home,
   "/about": About,
@@ -9,14 +15,16 @@ const routes = {
 
 export function router() {
   const path = window.location.hash.slice(1) || "/";
-  const viewFn = routes[path];
+  /** @type {View} */
+  const view = routes[path];
 
-  if (!viewFn) {
+  if (!view) {
     document.getElementById("app").innerHTML = Error();
     return;
   }
 
-  document.getElementById("app").innerHTML = viewFn();
+  document.getElementById("app").innerHTML = view.render;
+  if(view.setup) view.setup()
 }
 
 window.addEventListener("hashchange", router);

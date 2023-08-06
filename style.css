@@ -27,7 +27,12 @@ nav {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: linear-gradient(to bottom, #f0f0f0 80%, #f0f0f0cc 90%, transparent);
+  background: linear-gradient(
+    to bottom,
+    #f0f0f0 80%,
+    #f0f0f0cc 90%,
+    transparent
+  );
 }
 
 nav ul {
@@ -49,6 +54,12 @@ nav a {
 
 nav a:hover {
   text-decoration: underline;
+}
+
+#wallet-address {
+  font-size: 1.5rem;
+  font-style: italic;
+  color: lightslategray;
 }
 
 h1 {
@@ -101,14 +112,8 @@ footer a {
   font-size: 1.5rem;
 }
 
-#wallet-address {
-  font-size: 1.5rem;
-  font-style: italic;
-  color: lightslategray;
-}
-
 .bananapus {
-  color: #F08000;
+  color: #f08000;
   text-decoration: underline;
   font-size: 2.8rem;
 }

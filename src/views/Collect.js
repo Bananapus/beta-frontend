@@ -1,3 +1,3 @@
-export function Collect() {
-  return `<h1>Collect</h1>`
-}
+export const Collect = {
+  render: `<h1>Collect</h1>`,
+};

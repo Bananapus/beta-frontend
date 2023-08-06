@@ -1,5 +1,5 @@
-export function Home() {
-  return `
+export const Home = {
+  render: `
 <h1>Bananapus</h1>
 <p>
   <span class="bananapus">bananapus</span> is developing onchain governance and
@@ -23,5 +23,5 @@ export function Home() {
   To get involved, join our
   <a href="https://discord.gg/ErQYmth4dS">Discord server</a>.
 </p>
-`;
-}
+`,
+};

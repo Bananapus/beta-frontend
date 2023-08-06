@@ -1,3 +1,3 @@
-export function Stake() {
-  return `<h1>Stake</h1>`
-}
+export const Stake = {
+  render: `<h1>Stake</h1>`,
+};
