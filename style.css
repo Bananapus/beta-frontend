@@ -72,7 +72,7 @@ h1 {
 }
 
 h2 {
-  color: #F08000;
+  color: #f08000;
   font-family: "JPN30", monospace;
   letter-spacing: 0.3rem;
   text-decoration: underline 2px;
@@ -169,18 +169,26 @@ input {
   border: 1px solid #a1a09d;
 
   flex: 1;
-  max-width: calc(100%-340px);;
+  max-width: calc(100%-340px);
 }
 
 @media (max-width: 1200px) {
-  #main-container {
+  h1 {
+    display: none;
+  }
+
+  #stake-container {
     flex-direction: column;
   }
 
   #tiers-menu,
   #cart-menu {
-    max-width: 100%;
     width: 100%;
+  }
+
+  #cart-menu {
+    max-width: 400px;
+    margin: auto;
   }
 }
 
