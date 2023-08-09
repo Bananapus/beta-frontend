@@ -15,7 +15,7 @@ export const Stake = {
   <div id="tiers-menu"></div>
   <div id="cart-menu">
     <h2>Your Cart</h2>
-    <div id="cart-items"><p>Cart empty.</p></div>
+    <ul id="cart-items"></ul>
     <ul>
       <li id="user-balance"></li>
       <li id="cart-total">In Cart: 0 WETH</li>
@@ -42,6 +42,7 @@ export const Stake = {
     const userBalance = document.getElementById("user-balance");
     const buyButton = document.getElementById("buy-button");
     const resetButton = document.getElementById("reset-button");
+    const cartItems = document.getElementById("cart-items");
 
     document.getElementById("app").style.maxWidth = "100%";
 
@@ -83,6 +84,7 @@ export const Stake = {
           nftDiv.dataset.id = tier.id;
           nftDiv.dataset.price = tier.price;
 
+          // TODO: Fullscreen button shows dialog with full metadata.
           const fullScreenButton = document.createElement("button");
           fullScreenButton.innerText = "…";
           fullScreenButton.classList.add("full-screen-btn");
@@ -96,7 +98,6 @@ export const Stake = {
             const img = document.createElement("img");
             img.src = nftUri.image;
             img.alt = `${tier.name ? tier.name : "NFT"} artwork`;
-            nftDiv.dataset.image = nftUri.image;
             nftDiv.appendChild(img);
           }
 
@@ -176,6 +177,12 @@ export const Stake = {
 
       console.log(cart);
     };
+
+    function renderCart() {
+      if (!cart[0]) cartItems.innerHTML = "<li>Cart empty.</li>";
+    }
+
+    renderCart()
 
     /**
      * @typedef {Object} EventListenerObjs
