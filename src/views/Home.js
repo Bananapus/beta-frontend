@@ -4,6 +4,7 @@ import {
   getAccount,
   getNetwork,
   writeContract,
+  switchNetwork,
 } from "@wagmi/core";
 import { TESTNET } from "../consts";
 
@@ -90,6 +91,14 @@ export const Home = {
     updateEstimate();
     validateAmount();
 
+    /**
+     * @typedef {Object} EventListenerObjs
+     * @property {HTMLElement} element - The target element.
+     * @property {string} type - The event type.
+     * @property {Function} listener - The function to invoke.
+     */
+
+    /** @type {EventListenerObjs[]} */
     const eventListeners = [
       {
         element: input,

@@ -13,15 +13,16 @@ export const About = {
   are the first realization of these objectives.
 </p>
 <p>
-  Bananapus will deploy the Juicebox protocol on Ethereum layer 2 blockchains.
-  Bananapus (and its projects) will be governed onchain. On the
+  Bananapus will deploy Juicebox on Ethereum layer 2 blockchains. Bananapus (and
+  its projects) will be governed onchain: on the
   <a href="#/stake">Stake</a> page, anyone can stake $NANA to claim Bananapus
   governance NFTs. The more $NANA someone stakes, and the longer they stake it
-  for, the more voting power they have over Bananapus.
+  for, the more voting power they have in Bananapus governance.
 </p>
 <p>
-  Bananapus will reserve a percentage its project's tokens for stakers. These
-  tokens can be claimed over a vesting period. Bananapus members can begin their
+  Bananapus will deploy the first project on new Juicebox deployments,
+  collecting fees and reserving a percentage of tokens for stakers. These tokens
+  can be claimed over a vesting period. Bananapus members can begin their
   vesting periods and collect their rewards on the
   <a href="#/collect">Collect</a> page.
 </p>

@@ -126,7 +126,94 @@ input {
   font-family: "ANK30", monospace;
   font-size: 2rem;
   padding: 10px 20px;
-  background-color: #FFFFFF;
+  background-color: #ffffff;
   border: 1px solid #a1a09d;
   border-radius: 2px;
+}
+
+#tiers-menu {
+  overflow-y: auto;
+  max-height: 65vh;
+  border: 1px solid #a1a09d;
+}
+
+.nft-div {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #a1a09d;
+  height: 150px;
+  cursor: pointer;
+  position: relative;
+}
+
+.nft-div input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  align-self: center;
+  margin-left: 10px;
+  flex-shrink: 0;
+}
+
+.nft-div img {
+  width: 100px;
+  height: 100px;
+  margin-left: 10px;
+}
+
+.text-section {
+  flex-grow: 1;
+  margin-left: 12px;
+  display: flex;
+  flex-direction: column;
+  /*justify-content: top;*/
+  min-width: 0; /* Needed for text-overflow to work with flex */
+}
+
+.text-section .title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-style: italic;
+  font-size: 1.8rem;
+  text-decoration: none;
+  color: #2b2b46;
+}
+
+.text-section .external-link:hover {
+  text-decoration: underline;
+  color: royalblue;
+}
+
+.text-section .description {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  white-space: normal;
+  display: -webkit-box; /* Required for line-clamp */
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.nft-div ul {
+  margin-left: 10px;
+  font-size: 14px;
+  width: 150px;
+  flex-shrink: 0;
+}
+
+.full-screen-btn {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  padding: 0 5px;
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.text-section a:hover {
+  text-decoration: underline;
 }
