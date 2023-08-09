@@ -71,6 +71,16 @@ h1 {
   margin-top: 0px;
 }
 
+h2 {
+  color: #F08000;
+  font-family: "JPN30", monospace;
+  letter-spacing: 0.3rem;
+  text-decoration: underline 2px;
+  font-size: 2.5rem;
+  margin: 12px 0;
+  text-align: center;
+}
+
 p,
 span {
   font-size: 2rem;
@@ -131,10 +141,47 @@ input {
   border-radius: 2px;
 }
 
+/* Staking page */
+#stake-container {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+#cart-menu {
+  width: 300px;
+  padding-left: 20px;
+  text-align: center;
+}
+
+#cart-menu ul {
+  text-align: left;
+  list-style: none;
+}
+
+#cart-menu li {
+  font-size: 1.6rem;
+}
+
 #tiers-menu {
   overflow-y: auto;
   max-height: 65vh;
   border: 1px solid #a1a09d;
+
+  flex: 1;
+  max-width: calc(100%-340px);;
+}
+
+@media (max-width: 1200px) {
+  #main-container {
+    flex-direction: column;
+  }
+
+  #tiers-menu,
+  #cart-menu {
+    max-width: 100%;
+    width: 100%;
+  }
 }
 
 .nft-div {
@@ -190,19 +237,22 @@ input {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 14px;
+  font-size: 1.2rem;
   white-space: normal;
   display: -webkit-box; /* Required for line-clamp */
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
 .nft-div ul {
   margin-left: 10px;
-  font-size: 14px;
   width: 150px;
   flex-shrink: 0;
+}
+
+.nft-div li {
+  font-size: 1.4rem;
 }
 
 .full-screen-btn {
@@ -212,8 +262,4 @@ input {
   padding: 0 5px;
   margin: 0;
   font-size: 0.8rem;
-}
-
-.text-section a:hover {
-  text-decoration: underline;
 }

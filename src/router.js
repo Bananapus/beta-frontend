@@ -21,7 +21,7 @@ export async function router() {
   const view = routes[path];
 
   if (!view) {
-    document.getElementById("app").innerHTML = Error();
+    document.getElementById("app").innerHTML = Error.render;
     return;
   }
 

@@ -1,4 +1,4 @@
-import { parseEther, formatEther, parseAbiItem } from "viem";
+import { parseEther, formatEther } from "viem";
 import {
   fetchBalance,
   getAccount,
@@ -6,7 +6,7 @@ import {
   writeContract,
   switchNetwork,
 } from "@wagmi/core";
-import { TESTNET } from "../consts";
+import { TESTNET, payAbi } from "../consts";
 
 export const Home = {
   render: `
@@ -27,7 +27,7 @@ export const Home = {
   </li>
   <li>To learn more, read <a href="#/about">About</a>.</li>
   <li>
-    To stake your \$NANA and govern Bananapus, visit
+    To stake your \$NANA and earn a share of the network's growth, visit
     <a href="#/stake">Stake</a>.
   </li>
   <li>
@@ -115,11 +115,6 @@ export const Home = {
           try {
             // Buy NANA
             const value = parseEther(input.value);
-            const abi = [
-              parseAbiItem(
-                "function pay(uint256 _projectId, uint256 _amount, address _token, address _beneficiary, uint256 _minReturnedTokens, bool _preferClaimedTokens, string _memo, bytes _metadata) payable returns (uint256)"
-              ),
-            ];
 
             input.value = "";
             input.disabled = true;
@@ -138,7 +133,7 @@ export const Home = {
                 ? {
                     address: "0xFA391De95Fcbcd3157268B91d8c7af083E607A5C", // Mainnet JBETHPaymentTerminal3_1
                     functionName: "pay",
-                    abi,
+                    abi: payAbi,
                     chainId: 1,
                     value,
                     args: [
@@ -155,7 +150,7 @@ export const Home = {
                 : {
                     address: "0x0baCb87Cf7DbDdde2299D92673A938E067a9eb29", // Goerli JBETHPaymentTerminal3_1
                     functionName: "pay",
-                    abi,
+                    abi: payAbi,
                     chainId: 5,
                     value,
                     args: [

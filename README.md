@@ -82,9 +82,19 @@ function collect(
 ) external { ... }
 ```
 
-## Note
+## Notes
 
 ```bash
 anvil --fork-chain-id 5 --fork-url https://rpc.ankr.com/eth_goerli --fork-block-number <block-number>
 forge script DeployGoerli --broadcast --rpc-url http://127.0.0.1:8545 --sender <sender> --private-key <private-key>
+```
+
+```
+== Logs ==
+  delegate 0xDBe5ABD7fc211B4249F02013a35bb4cccEE41cd4
+  distributor 0x7087434A64dB51Afb1EC88651D842D9951ABed34
+  terminal 0x73CF72D2C4b3C8C541c2b294B221EeD15fbE5266
+  token 0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6
+  terminalDeployer 0xaa66Be95C73d4968B2a2AFC8333b9b82E32142b0
+  delegateDeployer 0x53C2a52cB4e442ea4805AC0D4b665971a5a9fc3F
 ```
