@@ -320,8 +320,6 @@ export const Stake = {
               });
             else cart.delete(closestNftDiv.dataset.id);
             renderCart();
-
-            console.log(cart);
           }
         },
       },
@@ -344,7 +342,6 @@ export const Stake = {
               if (account.connector?.name === "MetaMask")
                 cartStatusText.innerText +=
                   " Select 'Use default' in Metamask.";
-              console.log(account.connector);
               const { hash } = await writeContract({
                 address: token.result,
                 abi: [
@@ -357,8 +354,7 @@ export const Stake = {
               });
 
               cartStatusText.innerText = "Approval transaction pending...";
-              const data = await waitForTransaction({ hash, confirmations: 1 });
-              console.log(data);
+              await waitForTransaction({ hash, confirmations: 1 });
             }
           } catch (e) {
             console.log(e);
@@ -368,18 +364,6 @@ export const Stake = {
           }
 
           cartStatusText.innerText = `Staking...`;
-
-          console.log(
-            "Tiers: ",
-            [...cart.entries()].flatMap((e) => {
-              console.log("Quantity: ", e[1].quantity);
-              return Array.from({ length: e[1].quantity }, () => [
-                BigInt(e[0]),
-                e[1].price,
-              ]);
-            }) // Finally, JB721StakingTier[]
-          );
-
           const hexString = encodeAbiParameters(
             parseAbiParameters([
               "bytes32, bytes32, bytes4, bool, address, JB721StakingTier[]",
@@ -410,8 +394,6 @@ export const Stake = {
             "Paid from bananapus.com",
             hexString,
           ];
-
-          console.log(payArgs);
 
           try {
             const { hash } = await writeContract({
