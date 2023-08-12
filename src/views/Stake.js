@@ -371,7 +371,13 @@ export const Stake = {
 
           console.log(
             "Tiers: ",
-            [...cart.entries()].map((e) => [e[0], BigInt(e[1].quantity)])
+            [...cart.entries()].flatMap((e) => {
+              console.log("Quantity: ", e[1].quantity);
+              return Array.from({ length: e[1].quantity }, () => [
+                BigInt(e[0]),
+                e[1].price,
+              ]);
+            }) // Finally, JB721StakingTier[]
           );
 
           const hexString = encodeAbiParameters(
@@ -385,7 +391,12 @@ export const Stake = {
               "0x00000000", // 4 bytes for interfaceId. TODO add the real one once deployed.
               false, // Next ignored bool
               "0x0000000000000000000000000000000000000000", // Next address of voting delegate
-              [...cart.entries()].map((e) => [BigInt(e[0]), BigInt(e[1].quantity)]), // Finally, JB721StakingTier[]
+              [...cart.entries()].flatMap((e) =>
+                Array.from({ length: e[1].quantity }, () => [
+                  BigInt(e[0]),
+                  e[1].price,
+                ])
+              ), // Finally, JB721StakingTier[]
             ]
           );
 
@@ -403,12 +414,15 @@ export const Stake = {
           console.log(payArgs);
 
           try {
-            await writeContract({
+            const { hash } = await writeContract({
               address: JBERC20PaymentTerminal,
               abi: payAbi,
               functionName: "pay",
               args: payArgs,
             });
+            cartStatusText.innerText = "Staking transaction pending...";
+            await waitForTransaction({ hash, confirmations: 1 });
+            resetButton.click();
             cartStatusText.innerText = "Success!";
           } catch (e) {
             console.log(e);
