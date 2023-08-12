@@ -1,12 +1,24 @@
-import { getAccount, readContracts, writeContract } from "@wagmi/core";
-import { formatEther, parseAbiItem } from "viem";
+import {
+  getAccount,
+  readContracts,
+  waitForTransaction,
+  writeContract,
+} from "@wagmi/core";
+import {
+  encodeAbiParameters,
+  formatEther,
+  formatUnits,
+  parseAbiItem,
+  parseAbiParameters,
+} from "viem";
 import {
   JBERC20PaymentTerminal,
   JB721StakingDelegate,
   payAbi,
   tiersOfAbi,
+  BANANAPUS_PROJECT_ID,
 } from "../consts";
-import { JBIpfsDecode, formatNumber } from "../utils";
+import { JBIpfsDecode, formatLargeBigInt } from "../utils";
 
 export const Stake = {
   render: `
@@ -18,7 +30,8 @@ export const Stake = {
     <ul id="cart-items"></ul>
     <ul>
       <li id="user-balance"></li>
-      <li id="cart-total">In Cart: 0 WETH</li>
+      <li id="cart-total">Cart Total: -</li>
+      <li id="cart-status-text" style="font-style: italic"></li>
     </ul>
     <button id="reset-button">Reset</button>
     <button id="buy-button">Buy</button>
@@ -43,6 +56,8 @@ export const Stake = {
     const buyButton = document.getElementById("buy-button");
     const resetButton = document.getElementById("reset-button");
     const cartItems = document.getElementById("cart-items");
+    const cartTotal = document.getElementById("cart-total");
+    const cartStatusText = document.getElementById("cart-status-text");
 
     document.getElementById("app").style.maxWidth = "100%";
 
@@ -83,6 +98,7 @@ export const Stake = {
           nftDiv.className = "nft-div";
           nftDiv.dataset.id = tier.id;
           nftDiv.dataset.price = tier.price;
+          nftDiv.dataset.remainingQuantity = tier.remainingQuantity;
 
           // TODO: Fullscreen button shows dialog with full metadata.
           const fullScreenButton = document.createElement("button");
@@ -131,14 +147,14 @@ export const Stake = {
           stats.appendChild(price);
           if (tier.initialQuantity !== BigInt(1000000000)) {
             const supply = document.createElement("li");
-            supply.textContent = `${formatNumber(
+            supply.textContent = `${formatLargeBigInt(
               tier.remainingQuantity
-            )}/${formatNumber(tier.initialQuantity)} left`;
+            )}/${formatLargeBigInt(tier.initialQuantity)} left`;
             stats.appendChild(supply);
           }
           if (tier.votingUnits) {
             const votes = document.createElement("li");
-            votes.textContent = `${formatNumber(tier.votingUnits)} votes`;
+            votes.textContent = `${formatLargeBigInt(tier.votingUnits)} votes`;
             stats.appendChild(votes);
           }
           nftDiv.appendChild(stats);
@@ -148,7 +164,7 @@ export const Stake = {
     });
 
     // Display balance
-    const [balance, symbol] = await readContracts({
+    const [balance, symbol, allowance] = await readContracts({
       contracts: [
         {
           address: token.result,
@@ -163,26 +179,113 @@ export const Stake = {
           abi: [parseAbiItem("function symbol() view returns (string)")],
           functionName: "symbol",
         },
+        {
+          address: token.result,
+          abi: [
+            parseAbiItem(
+              "function allowance(address _owner, address _spender) public view returns (uint256 remaining)"
+            ),
+          ],
+          functionName: "allowance",
+          args: [account.address, JBERC20PaymentTerminal],
+        },
       ],
     });
-    userBalance.innerText = `Balance: ${formatNumber(
-      balance.result / BigInt(10) ** decimals.result
-    )} ${symbol.result}`;
 
-    const cart = [];
-    const updateCart = (tierId, addToCart) => {
-      const index = cart.findIndex((id) => id === tierId);
-      if (addToCart && index === -1) cart.push(tierId);
-      else if (!addToCart && index !== -1) cart.splice(index, 1);
+    buyButton.innerText =
+      allowance.result === BigInt(0) ? `Approve ${symbol.result}` : `Buy`;
 
-      console.log(cart);
-    };
+    userBalance.innerText = `Your Balance: ${parseFloat(
+      formatUnits(balance.result, Number(decimals.result))
+    ).toLocaleString("en", { maximumFractionDigits: 18 })} ${symbol.result}`;
+
+    /**
+     * @typedef {Object} CartProps
+     * @property {BigInt} price - The price of the NFT.
+     * @property {BigInt} remainingQuantity - The remaining quantity of the NFT.
+     * @property {string} title - The title of the NFT.
+     * @property {number} quantity - The quantity of the NFT.
+     */
+
+    /** @type {Map<BigInt, CartProps>} cart Mapping of NFT tierIds to CartProps */
+    const cart = new Map();
 
     function renderCart() {
-      if (!cart[0]) cartItems.innerHTML = "<li>Cart empty.</li>";
+      if (cart.size === 0) {
+        cartItems.innerHTML = "<li>Cart empty.</li>";
+        cartTotal.innerText = `Cart Total: 0 ${symbol.result}`;
+        return;
+      }
+
+      let totalCartPrice = BigInt(0);
+
+      cartItems.innerHTML = "";
+
+      cart.forEach((nft, tierId) => {
+        const li = document.createElement("li");
+
+        const itemDetail = document.createElement("div");
+        itemDetail.className = "item-detail";
+
+        const input = document.createElement("input");
+        input.type = "number";
+        input.value = nft.quantity;
+        input.oninput = () => {
+          if (input.value <= 0) input.value = 1;
+          cart.get(tierId).quantity = input.value;
+          renderCart();
+        };
+        itemDetail.appendChild(input);
+
+        const title = document.createElement("p");
+        title.innerText = "x " + nft.title;
+        title.classList.add("cart-title");
+        itemDetail.appendChild(title);
+        li.appendChild(itemDetail);
+
+        const removeButton = document.createElement("button");
+        removeButton.innerText = "X";
+        removeButton.onclick = () => {
+          cart.delete(tierId);
+          const checkbox = tiersMenu.querySelector(
+            `.nft-div[data-id="${tierId}"] input[type="checkbox"]`
+          );
+          if (checkbox) checkbox.checked = false;
+          renderCart();
+        };
+
+        const price = document.createElement("p");
+        price.innerText = `${parseFloat(
+          formatUnits(
+            BigInt(nft.price) * BigInt(nft.quantity),
+            Number(decimals.result)
+          )
+        ).toLocaleString("en", { maximumFractionDigits: 18 })} ${
+          symbol.result
+        }`;
+        price.className = "cart-item-price";
+        li.appendChild(price);
+
+        li.appendChild(removeButton);
+
+        cartItems.appendChild(li);
+        totalCartPrice += BigInt(nft.price) * BigInt(nft.quantity);
+      });
+
+      cartTotal.innerText = `Cart Total: ${parseFloat(
+        formatUnits(totalCartPrice, Number(decimals.result))
+      ).toLocaleString("en", { maximumFractionDigits: 18 })} ${symbol.result}`;
+
+      if (totalCartPrice > balance.result) {
+        buyButton.disabled = true;
+        cartTotal.style.color = "red";
+      } else {
+        buyButton.disabled = false;
+        cartTotal.style.color = "";
+      }
     }
 
-    renderCart()
+    renderCart();
 
     /**
      * @typedef {Object} EventListenerObjs
@@ -191,7 +294,7 @@ export const Stake = {
      * @property {Function} listener - The function to invoke.
      */
 
-    /** @type {EventListenerObjs[]} */
+    /** @type {EventListenerObjs} */
     const eventListeners = [
       {
         element: tiersMenu,
@@ -208,7 +311,17 @@ export const Stake = {
               checkbox.checked = !checkbox.checked;
             }
 
-            updateCart(closestNftDiv.dataset.id, checkbox.checked);
+            if (checkbox.checked)
+              cart.set(closestNftDiv.dataset.id, {
+                price: closestNftDiv.dataset.price,
+                remainingQuantity: closestNftDiv.dataset.remainingQuantity,
+                title: closestNftDiv.dataset.title,
+                quantity: 1,
+              });
+            else cart.delete(closestNftDiv.dataset.id);
+            renderCart();
+
+            console.log(cart);
           }
         },
       },
@@ -216,20 +329,107 @@ export const Stake = {
         element: buyButton,
         type: "click",
         // Buy NFTs in cart.
-        listener: () => {
-          writeContract({
-            address: JBERC20PaymentTerminal,
-            abi: payAbi,
-            functionName: "pay",
-            args: [],
-          });
+        listener: async () => {
+          if (cart.size === 0) return;
+
+          let cartTotalCost = [...cart.values()]
+            .map((p) => BigInt(p.price) * BigInt(p.quantity))
+            .reduce((a, b) => a + b);
+
+          buyButton.disabled = true;
+
+          try {
+            if (allowance.result < cartTotalCost) {
+              cartStatusText.innerText = `Approving ${symbol.result}...`;
+              if (account.connector?.name === "MetaMask")
+                cartStatusText.innerText +=
+                  " Select 'Use default' in Metamask.";
+              console.log(account.connector);
+              const { hash } = await writeContract({
+                address: token.result,
+                abi: [
+                  parseAbiItem(
+                    "function approve(address _spender, uint256 _value) public returns (bool success)"
+                  ),
+                ],
+                functionName: "approve",
+                args: [JBERC20PaymentTerminal, cartTotalCost],
+              });
+
+              cartStatusText.innerText = "Approval transaction pending...";
+              const data = await waitForTransaction({ hash, confirmations: 1 });
+              console.log(data);
+            }
+          } catch (e) {
+            console.log(e);
+            buyButton.disabled = false;
+            cartStatusText.innerText = `${symbol.result} approval failed. Try again.`;
+            return;
+          }
+
+          cartStatusText.innerText = `Staking...`;
+
+          console.log(
+            "Tiers: ",
+            [...cart.entries()].map((e) => [e[0], BigInt(e[1].quantity)])
+          );
+
+          const hexString = encodeAbiParameters(
+            parseAbiParameters([
+              "bytes32, bytes32, bytes4, bool, address, JB721StakingTier[]",
+              "struct JB721StakingTier { uint16 tierId; uint128 amount; }",
+            ]),
+            [
+              "0x" + BANANAPUS_PROJECT_ID.toString(16).padStart(64, "0"), // First 32 bytes should be the Bananapus project ID (488).
+              "0x" + "0".repeat(64), // Skip next 32 bytes.
+              "0x00000000", // 4 bytes for interfaceId. TODO add the real one once deployed.
+              false, // Next ignored bool
+              "0x0000000000000000000000000000000000000000", // Next address of voting delegate
+              [...cart.entries()].map((e) => [BigInt(e[0]), BigInt(e[1].quantity)]), // Finally, JB721StakingTier[]
+            ]
+          );
+
+          const payArgs = [
+            BigInt(1183), // TODO: Replace with real project ID
+            cartTotalCost,
+            token.result,
+            account.address,
+            BigInt(0),
+            false,
+            "Paid from bananapus.com",
+            hexString,
+          ];
+
+          console.log(payArgs);
+
+          try {
+            await writeContract({
+              address: JBERC20PaymentTerminal,
+              abi: payAbi,
+              functionName: "pay",
+              args: payArgs,
+            });
+            cartStatusText.innerText = "Success!";
+          } catch (e) {
+            console.log(e);
+            cartStatusText.innerText = "Staking failed.";
+          } finally {
+            buyButton.disabled = false;
+          }
         },
       },
       {
         element: resetButton,
         type: "click",
         listener: () => {
-          cart = [];
+          cart.clear();
+          renderCart();
+          const checkboxes = document.querySelectorAll(
+            '.nft-div input[type="checkbox"]'
+          );
+          checkboxes.forEach((checkbox) => {
+            checkbox.checked = false;
+          });
         },
       },
     ];

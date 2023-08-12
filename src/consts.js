@@ -21,3 +21,5 @@ export const tiersOfAbi = [
     `struct JB721Tier { uint256 id; uint256 price; uint256 remainingQuantity; uint256 initialQuantity; uint256 votingUnits; uint256 reservedRate; address reservedTokenBeneficiary; bytes32 encodedIPFSUri; uint256 category; bool allowManualMint; bool transfersPausable; string resolvedUri; }`,
   ]),
 ];
+
+export const BANANAPUS_PROJECT_ID = TESTNET ? 601 : 488

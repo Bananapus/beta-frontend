@@ -98,3 +98,19 @@ forge script DeployGoerli --broadcast --rpc-url http://127.0.0.1:8545 --sender <
   terminalDeployer 0xaa66Be95C73d4968B2a2AFC8333b9b82E32142b0
   delegateDeployer 0x53C2a52cB4e442ea4805AC0D4b665971a5a9fc3F
 ```
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.17;
+
+import "forge-std/Test.sol";
+import "forge-std/console.sol";
+import "../src/interfaces/IJB721StakingDelegate.sol";
+
+contract InterfaceIdTest is Test {
+  function testLogInterfaceId() public view {
+    console.logString("IJB721StakingDelegate Interface ID");
+    console.logBytes4(type(IJB721StakingDelegate).interfaceId);
+  }
+}
+```

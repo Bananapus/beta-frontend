@@ -149,14 +149,14 @@ input {
 }
 
 #cart-menu {
-  width: 300px;
+  width: 445px;
   padding-left: 20px;
   text-align: center;
 }
 
 #cart-menu ul {
-  text-align: left;
   list-style: none;
+  padding: 0;
 }
 
 #cart-menu li {
@@ -187,9 +187,79 @@ input {
   }
 
   #cart-menu {
-    max-width: 400px;
+    max-width: 450px;
     margin: auto;
   }
+}
+
+#cart-items li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid black; /* black line separating each row */
+  padding: 5px 0;
+}
+
+#cart-items input[type="number"] {
+  font-size: 1.6rem; /* small font */
+  width: 50px; /* specific width that fits the numbers */
+  border: none; /* no border */
+  text-align: center;
+  padding: 0;
+  margin-right: 5px;
+  appearance: textfield;
+}
+
+/* These rules keep the up and down arrows visible in some browsers */
+#cart-items input[type="number"]::-webkit-inner-spin-button,
+#cart-items input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: inner-spin-button;
+  opacity: 1;
+}
+
+#cart-items p {
+  font-size: 1.6rem;
+  margin: 0;
+  flex-grow: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#cart-items .cart-title {
+  font-weight: bold;
+}
+
+#cart-items .item-detail {
+  flex-grow: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  text-align: left;
+}
+
+#cart-items .item-detail::after {
+  content: "";
+  display: block;
+  flex-grow: 1;
+}
+
+#cart-items .cart-item-price {
+  text-align: right;
+}
+
+#cart-items button {
+  background-color: red;
+  color: white;
+  border: none;
+  cursor: pointer;
+  padding: 2px 5px;
+  margin-left: 10px;
+}
+
+#cart-total {
+  font-weight: bold;
+  padding: 10px 0;
 }
 
 .nft-div {

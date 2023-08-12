@@ -15,23 +15,21 @@ export function JBIpfsDecode(hexString) {
   return hexToBase58("0x1220" + hexString.substring(2));
 }
 
-export function formatNumber(num) {
-  const bigNum = BigInt(num);
-  const units = [
-    { value: BigInt(1000000000000), suffix: 'T' },
-    { value: BigInt(1000000000), suffix: 'B' },
-    { value: BigInt(1000000), suffix: 'M' },
-    { value: BigInt(1000), suffix: 'K' }
-  ];
-
-  for (const unit of units) {
-    if (bigNum >= unit.value) {
-      const integerPart = bigNum / unit.value;
-      const decimalPart = ((bigNum % unit.value) * BigInt(100)) / unit.value;
-      const decimals = decimalPart.toString().padStart(2, '0');
-      return integerPart.toLocaleString() + (decimals !== '00' ? '.' + decimals : '') + unit.suffix;
+export function formatLargeBigInt(n) {
+  const formatWithSuffix = (divisor, suffix) => {
+    const integerPart = n / divisor;
+    const decimalPart = ((n % divisor) * BigInt("1000")) / divisor;
+    let result = integerPart.toLocaleString();
+    if (decimalPart > BigInt("0")) {
+      result += "." + decimalPart.toString().padStart(3, "0");
     }
-  }
+    return result + suffix;
+  };
 
-  return bigNum.toLocaleString();
+  if (n >= BigInt(1e12)) return formatWithSuffix(BigInt(1e12), "T");
+  if (n >= BigInt(1e9)) return formatWithSuffix(BigInt(1e9), "B");
+  if (n >= BigInt(1e6)) return formatWithSuffix(BigInt(1e6), "M");
+  if (n >= BigInt(1e3)) return formatWithSuffix(BigInt(1e3), "K");
+
+  return n.toLocaleString();
 }
