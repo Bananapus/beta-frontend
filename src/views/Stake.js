@@ -88,6 +88,34 @@ export const Stake = {
       ],
     });
 
+    const [balance, symbol, allowance] = await readContracts({
+      contracts: [
+        {
+          address: token.result,
+          abi: [
+            parseAbiItem("function balanceOf(address) view returns (uint256)"),
+          ],
+          functionName: "balanceOf",
+          args: [account.address],
+        },
+        {
+          address: token.result,
+          abi: [parseAbiItem("function symbol() view returns (string)")],
+          functionName: "symbol",
+        },
+        {
+          address: token.result,
+          abi: [
+            parseAbiItem(
+              "function allowance(address _owner, address _spender) public view returns (uint256 remaining)"
+            ),
+          ],
+          functionName: "allowance",
+          args: [account.address, JBERC20PaymentTerminal],
+        },
+      ],
+    });
+
     const IpfsBaseUrl = "https://ipfs.io/ipfs/";
     // Build and add each NFT tier
     tiers.result.forEach((tier) => {
@@ -101,20 +129,41 @@ export const Stake = {
           nftDiv.dataset.remainingQuantity = tier.remainingQuantity;
 
           // TODO: Fullscreen button shows dialog with full metadata.
-          const fullScreenButton = document.createElement("button");
-          fullScreenButton.innerText = "…";
-          fullScreenButton.classList.add("full-screen-btn");
-          nftDiv.appendChild(fullScreenButton);
+          const infoButton = document.createElement("button");
+          infoButton.innerText = "…";
+          infoButton.classList.add("info-btn");
+          nftDiv.appendChild(infoButton);
 
           const checkbox = document.createElement("input");
           checkbox.type = "checkbox";
           nftDiv.appendChild(checkbox);
 
           if (nftUri.image) {
-            const img = document.createElement("img");
-            img.src = nftUri.image;
-            img.alt = `${tier.name ? tier.name : "NFT"} artwork`;
-            nftDiv.appendChild(img);
+            const mediaDiv = document.createElement("div");
+            nftDiv.appendChild(mediaDiv);
+            mediaDiv.className = "media-div";
+
+            fetch(nftUri.image).then((res) => {
+              const mediaType = res.headers.get("Content-Type");
+
+              if (mediaType.startsWith("image/")) {
+                const img = document.createElement("img");
+                img.src = nftUri.image;
+                img.alt = `${tier.name ? tier.name : "NFT"} artwork`;
+                mediaDiv.appendChild(img);
+              } else if (mediaType.startsWith("video/")) {
+                const video = document.createElement("video");
+                video.controls = true;
+                video.src = nftUri.image;
+                mediaDiv.appendChild(video);
+              } else if (mediaType.startsWith("text/")) {
+                response.text().then((text) => {
+                  const div = document.createElement("div");
+                  div.textContent = text;
+                  mediaDiv.appendChild(div);
+                });
+              }
+            });
           }
 
           const textSection = document.createElement("div");
@@ -143,7 +192,7 @@ export const Stake = {
 
           const stats = document.createElement("ul");
           const price = document.createElement("li");
-          price.textContent = `${formatEther(tier.price)} ETH`;
+          price.textContent = `${formatEther(tier.price)} ${symbol.result}`;
           stats.appendChild(price);
           if (tier.initialQuantity !== BigInt(1000000000)) {
             const supply = document.createElement("li");
@@ -159,37 +208,42 @@ export const Stake = {
           }
           nftDiv.appendChild(stats);
 
+          infoButton.onclick = (e) => {
+            e.preventDefault();
+            const dialog = document.createElement("dialog");
+            dialog.innerHTML = `
+              <h2>${titleText}</h2>
+              ${nftUri.description ? `<p>${nftUri.description}</p>` : ""}
+              <ul>
+                <li>Price: ${formatEther(tier.price)} ${symbol.result}</li>
+                ${
+                  tier.initialQuantity !== BigInt(1000000000)
+                    ? `<li>Remaining supply: ${formatLargeBigInt(
+                        tier.remainingQuantity
+                      )}/${formatLargeBigInt(tier.initialQuantity)}</li>`
+                    : ""
+                }
+                ${
+                  tier.votingUnits
+                    ? `<li>Voting power: ${formatLargeBigInt(
+                        tier.votingUnits
+                      )}</li>`
+                    : ""
+                }
+              </ul>`;
+
+            const closeDialog = document.createElement("button");
+            closeDialog.textContent = "X";
+            closeDialog.className = "close-button";
+            closeDialog.onclick = () => document.body.removeChild(dialog);
+            dialog.appendChild(closeDialog);
+
+            document.body.appendChild(dialog);
+            dialog.showModal();
+          };
+
           tiersMenu.appendChild(nftDiv);
         });
-    });
-
-    // Display balance
-    const [balance, symbol, allowance] = await readContracts({
-      contracts: [
-        {
-          address: token.result,
-          abi: [
-            parseAbiItem("function balanceOf(address) view returns (uint256)"),
-          ],
-          functionName: "balanceOf",
-          args: [account.address],
-        },
-        {
-          address: token.result,
-          abi: [parseAbiItem("function symbol() view returns (string)")],
-          functionName: "symbol",
-        },
-        {
-          address: token.result,
-          abi: [
-            parseAbiItem(
-              "function allowance(address _owner, address _spender) public view returns (uint256 remaining)"
-            ),
-          ],
-          functionName: "allowance",
-          args: [account.address, JBERC20PaymentTerminal],
-        },
-      ],
     });
 
     buyButton.innerText =
@@ -244,6 +298,7 @@ export const Stake = {
         li.appendChild(itemDetail);
 
         const removeButton = document.createElement("button");
+        removeButton.className = "close-button";
         removeButton.innerText = "X";
         removeButton.onclick = () => {
           cart.delete(tierId);

@@ -1,4 +1,4 @@
-import { Home, About, Error, Stake, Collect } from "./views/index.js";
+import { Home, About, Error, Stake, Manage } from "./views/index.js";
 
 /**
  * @typedef {Object} View
@@ -10,7 +10,7 @@ const routes = {
   "/": Home,
   "/about": About,
   "/stake": Stake,
-  "/collect": Collect,
+  "/manage": Manage,
 };
 
 let cleanup = null;
