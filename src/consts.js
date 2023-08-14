@@ -1,12 +1,16 @@
 import { parseAbiItem } from "viem";
 
 export const TESTNET = true;
+export const BANANAPUS_PROJECT_ID = TESTNET ? 601 : 488;
 
 export const JB721StakingDelegate = TESTNET
   ? "0xDBe5ABD7fc211B4249F02013a35bb4cccEE41cd4"
   : "";
 export const JBERC20PaymentTerminal = TESTNET
   ? "0x73CF72D2C4b3C8C541c2b294B221EeD15fbE5266"
+  : "";
+export const JB721StakingDistributor = TESTNET
+  ? "0x7087434A64dB51Afb1EC88651D842D9951ABed34"
   : "";
 
 export const payAbi = [
@@ -21,5 +25,3 @@ export const tiersOfAbi = [
     `struct JB721Tier { uint256 id; uint256 price; uint256 remainingQuantity; uint256 initialQuantity; uint256 votingUnits; uint256 reservedRate; address reservedTokenBeneficiary; bytes32 encodedIPFSUri; uint256 category; bool allowManualMint; bool transfersPausable; string resolvedUri; }`,
   ]),
 ];
-
-export const BANANAPUS_PROJECT_ID = TESTNET ? 601 : 488
