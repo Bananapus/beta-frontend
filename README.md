@@ -91,13 +91,13 @@ forge script DeployGoerli --broadcast --rpc-url http://127.0.0.1:8545 --sender <
 
 ```
 == Logs ==
-  delegate 0x917AB049b358F78bc230EdF7332a2111B4C95627
-  distributor 0x1a94F75BBFAC60b3142278f879240AB23c88A013
-  terminal 0x5193268003Fbbf377932E733Ea3404C555fa1Ea5
+  delegate 0x7e4453F97165381E505cF1561c45046229bFf4eC
+  distributor 0x70A8fEe5e1221a8Bb5E4e37cf82Fa4AB796BdBb4
+  terminal 0xEA82EA879198E77f70bf7231C2050BCac05De919
   token 0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6
   terminalDeployer 0xCBCCAAc14d45F97C622eE4144B2054179Aa7d0a7
-  delegateDeployer 0x7b64664DEbc5c41288cb3aFc3cdB40CcA294C413
-  staking project ID 1191
+  delegateDeployer 0x254c74183Fd40374AACbA5e8Ce0EDd75E0420003
+  staking project ID 1195
 ```
 
 ```solidity
