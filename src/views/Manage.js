@@ -1,4 +1,9 @@
-import { getAccount, getPublicClient, readContract, writeContract } from "@wagmi/core";
+import {
+  getAccount,
+  getPublicClient,
+  readContracts,
+  writeContract,
+} from "@wagmi/core";
 import { parseAbiItem } from "viem";
 import { JB721StakingDelegate, JB721StakingDistributor } from "../consts";
 
@@ -15,8 +20,9 @@ export const Manage = {
 `,
   setup: async () => {
     const account = getAccount();
+    const app = document.getElementById("app")
     if (!account.isConnected) {
-      document.getElementById("app").innerHTML = `
+      app.innerHTML = `
         <h1>Manage</h1>
         <em>
           <p style='color: #f08000'>
@@ -26,54 +32,128 @@ export const Manage = {
       return;
     }
 
-    document.getElementById("app").style.maxWidth = "100%";
-
-    const beginVesting = document.getElementById("begin-vesting");
-    const collectRewards = document.getElementById("collect-rewards");
-    const redeemNfts = document.getElementById("redeem-nfts");
-    const yourNfts = document.getElementById("your-nfts")
-
     // Fetch transfer events
-    const publicClient = getPublicClient()
-    const filter = await publicClient.createContractEventFilter({
-      contract: JB721StakingDelegate,
-      eventName: parseAbiItem('event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)'),
+    const publicClient = getPublicClient();
+    const transfersToAccount = await publicClient.getLogs({
+      address: JB721StakingDelegate,
+      event: parseAbiItem(
+        "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+      ),
       fromBlock: 9507473n, // TODO: Deployment block of JB721StakingDelegate
       args: {
         to: account.address,
       },
-    })
-    const logs = await publicClient.getFilterChanges({ filter })
-    console.log(logs)
+    });
 
-    // Get the user's NFTs
-    // readContract({
-    //   contract: JB721StakingDelegate,
-    //   abi: parseAbiItem(),
-    // })
+    if (!transfersToAccount[0]) {
+      app.innerHTML = `
+        <h1>Manage</h1>
+        <em>
+          <p style='color: #f08000'>
+            Could not find NFTs for ${account.address}
+          </p>
+        </em>`;
+      return;
+    }
+
+    const transfersFromAccount = await publicClient.getLogs({
+      address: JB721StakingDelegate,
+      event: parseAbiItem(
+        "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+      ),
+      fromBlock: 9507473n, // TODO: Deployment block of JB721StakingDelegate
+      args: {
+        from: account.address,
+      },
+    });
+
+    app.style.maxWidth = "100%";
+
+    const beginVesting = document.getElementById("begin-vesting");
+    const collectRewards = document.getElementById("collect-rewards");
+    const redeemNfts = document.getElementById("redeem-nfts");
+    const yourNfts = document.getElementById("your-nfts");
+
+    console.log(transfersToAccount);
+
+    const heldTokenIds = new Map();
+
+    transfersToAccount.forEach((t) => {
+      if (heldTokenIds.has(t.args.tokenId)) {
+        if (heldTokenIds.get(t.args.tokenId) < t.blockNumber)
+          heldTokenIds.set(t.args.tokenId, t.blockNumber);
+      } else heldTokenIds.set(t.args.tokenId, t.blockNumber);
+    });
+    transfersFromAccount.forEach((f) => {
+      if (heldTokenIds.has(f.args.tokenId))
+        if (heldTokenIds.get(f.args.tokenId) < f.blockNumber)
+          heldTokenIds.delete(f.args.tokenId);
+    });
+
+    console.log(heldTokenIds.keys());
+
+    const [
+      tierMultiplier,
+      totalRedemptionWeight,
+      userVotingPower,
+      stakingToken,
+    ] = await readContracts({
+      contracts: [
+        {
+          contract: JB721StakingDelegate,
+          abi: [parseAbiItem("function tierMultiplier() view returns(uint256)")],
+          functionName: "tierMultiplier",
+        },
+        {
+          contract: JB721StakingDelegate,
+          functionName: "totalRedemptionWeight",
+          abi: [parseAbiItem(
+            "function totalRedemptionWeight(address) view returns (uint256 weight)"
+          )],
+          args: account.address,
+        },
+        {
+          contract: JB721StakingDelegate,
+          functionName: "userVotingPower",
+          abi: [parseAbiItem(
+            "function userVotingPower(address) view returns (uint256)"
+          )],
+          args: account.address,
+        },
+        {
+          contract: JB721StakingDelegate,
+          functionName: "stakingToken",
+          abi: [parseAbiItem("function stakingToken() view returns (address)")],
+        },
+      ],
+    });
+
+    console.log(
+      tierMultiplier,
+      totalRedemptionWeight,
+      userVotingPower,
+      stakingToken
+    );
 
     beginVesting.onclick = () => {
-      // TODO: Update to beginVesting on the new contract
       writeContract({
         contract: JB721StakingDistributor,
         abi: parseAbiItem(
-          "function claim(uint256[] _tokenIds, address[] _tokens)"
+          "function beginVesting(uint256[] _tokenIds, address[] _tokens)"
         ),
-        functionName: "claim",
+        functionName: "beginVesting",
         args: [],
       });
     };
 
     collectRewards.onclick = async () => {
-      // TODO: Update to collectVestedRewards on new contract
       await writeContract({
         contract: JB721StakingDistributor,
-        functionName: "collect",
-        abi: parseAbiItem('function collect(uint256[] _tokenIds, address[] _tokens, uint256 _cycle)'),
-        args: [
-          [1000000002],
-
-        ],
+        functionName: "collectVestedRewards",
+        abi: parseAbiItem(
+          "function collectVestedRewards(uint256[] _tokenIds, address[] _tokens, uint256 _round)"
+        ),
+        args: [],
       });
     };
 
@@ -92,7 +172,6 @@ export const Manage = {
     );
 
     return () => {
-      document.getElementById("app").style.maxWidth = "800px";
       eventListeners.forEach((e) => {
         e.element.removeEventListener(e.type, e.listener);
       });

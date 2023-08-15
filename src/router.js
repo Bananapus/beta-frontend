@@ -6,6 +6,7 @@ import { Home, About, Error, Stake, Manage } from "./views/index.js";
  * @property {Function} [setup] - The function to invoke after the view is rendered. Optional.
  */
 
+const app = document.getElementById("app")
 const routes = {
   "/": Home,
   "/about": About,
@@ -21,7 +22,7 @@ export async function router() {
   const view = routes[path];
 
   if (!view) {
-    document.getElementById("app").innerHTML = Error.render;
+    app.innerHTML = Error.render;
     return;
   }
 
@@ -30,7 +31,8 @@ export async function router() {
     cleanup = null;
   }
 
-  document.getElementById("app").innerHTML = view.render;
+  app.style.maxWidth = "800px";
+  app.innerHTML = view.render;
   if (view.setup) cleanup = await view.setup();
 }
 

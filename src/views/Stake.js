@@ -17,6 +17,7 @@ import {
   payAbi,
   tiersOfAbi,
   BANANAPUS_PROJECT_ID,
+  TESTNET_PROJECT_ID,
 } from "../consts";
 import { JBIpfsDecode, formatLargeBigInt } from "../utils";
 
@@ -39,9 +40,10 @@ export const Stake = {
 </div>
 `,
   setup: async () => {
+    const app = document.getElementById("app")
     const account = getAccount();
     if (!account.isConnected) {
-      document.getElementById("app").innerHTML = `
+      app.innerHTML = `
         <h1>Stake</h1>
         <em>
           <p style='color: #f08000'>
@@ -51,6 +53,8 @@ export const Stake = {
       return;
     }
 
+    app.style.maxWidth = "100%";
+
     const tiersMenu = document.getElementById("tiers-menu");
     const userBalance = document.getElementById("user-balance");
     const buyButton = document.getElementById("buy-button");
@@ -58,8 +62,6 @@ export const Stake = {
     const cartItems = document.getElementById("cart-items");
     const cartTotal = document.getElementById("cart-total");
     const cartStatusText = document.getElementById("cart-status-text");
-
-    document.getElementById("app").style.maxWidth = "100%";
 
     const [tiers, token, decimals] = await readContracts({
       contracts: [
@@ -87,6 +89,8 @@ export const Stake = {
         },
       ],
     });
+
+    console.log(tiers)
 
     const [balance, symbol, allowance] = await readContracts({
       contracts: [
@@ -440,7 +444,7 @@ export const Stake = {
           );
 
           const payArgs = [
-            BigInt(1183), // TODO: Replace with real project ID
+            BigInt(TESTNET_PROJECT_ID), // TODO: Replace with real project ID
             cartTotalCost,
             token.result,
             account.address,
@@ -490,7 +494,6 @@ export const Stake = {
     );
 
     return () => {
-      document.getElementById("app").style.maxWidth = "800px";
       eventListeners.forEach((e) =>
         e.element.removeEventListener(e.type, e.listener)
       );

@@ -3,14 +3,15 @@ import { parseAbiItem } from "viem";
 export const TESTNET = true;
 export const BANANAPUS_PROJECT_ID = TESTNET ? 601 : 488;
 
+export const TESTNET_PROJECT_ID = 1191
 export const JB721StakingDelegate = TESTNET
-  ? "0xDBe5ABD7fc211B4249F02013a35bb4cccEE41cd4"
-  : "";
-export const JBERC20PaymentTerminal = TESTNET
-  ? "0x73CF72D2C4b3C8C541c2b294B221EeD15fbE5266"
+  ? "0x917AB049b358F78bc230EdF7332a2111B4C95627"
   : "";
 export const JB721StakingDistributor = TESTNET
-  ? "0x7087434A64dB51Afb1EC88651D842D9951ABed34"
+  ? "0x1a94F75BBFAC60b3142278f879240AB23c88A013"
+  : "";
+export const JBERC20PaymentTerminal = TESTNET
+  ? "0x5193268003Fbbf377932E733Ea3404C555fa1Ea5"
   : "";
 
 export const payAbi = [
