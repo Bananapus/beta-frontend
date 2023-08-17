@@ -1,6 +1,5 @@
 import {
   getAccount,
-  readContract,
   readContracts,
   waitForTransaction,
   writeContract,
@@ -67,22 +66,16 @@ export const Stake = {
     const nftInfoDialog = document.getElementById("nft-info-dialog");
 
     const IpfsBaseUrl = "https://ipfs.io/ipfs/";
+    const base64RegExp = /^data:(.+?)(;base64)?,(.*)$/;
     let currentAllowance;
 
     // Fetch initial information
-    const [firstTierBatch, token, decimals, nftSymbol] = await readContracts({
+    const [maxTier, token, decimals, nftSymbol] = await readContracts({
       contracts: [
         {
           address: JB721StakingDelegate,
-          abi: tiersOfAbi,
-          functionName: "tiersOf",
-          args: [
-            JB721StakingDelegate,
-            [], // _categories not needed
-            true,
-            0,
-            25, // Fetch 25 tiers. More tiers will revert with _includeResolvedUri enabled.
-          ],
+          abi: [parseAbiItem("function maxTier() returns (uint256)")],
+          functionName: "maxTier",
         },
         {
           address: JBERC20PaymentTerminal,
@@ -108,8 +101,20 @@ export const Stake = {
     });
 
     // Fetch information from the token contract
-    const [balance, symbol, allowance] = await readContracts({
+    const [tiers, balance, symbol, allowance] = await readContracts({
       contracts: [
+        {
+          address: JB721StakingDelegate,
+          abi: tiersOfAbi,
+          functionName: "tiersOf",
+          args: [
+            JB721StakingDelegate,
+            [], // _categories not needed
+            true,
+            0n,
+            maxTier.result,
+          ],
+        },
         {
           address: token.result,
           abi: [
@@ -152,7 +157,7 @@ export const Stake = {
       formatUnits(balance.result, Number(decimals.result))
     ).toLocaleString("en", { maximumFractionDigits: 18 })} ${symbol.result}`;
 
-    console.log("First tier batch: ", firstTierBatch);
+    console.log("Tiers retrieved.", tiers);
 
     /**
      * @description Render an array of NFT tiers.
@@ -160,16 +165,30 @@ export const Stake = {
      */
     function renderNftTiers(tiers) {
       tiers.forEach(async (tier) => {
-        const { image, name, external_url, description } = await fetch(
-          IpfsBaseUrl + JBIpfsDecode(tier.encodedIPFSUri)
-        )
-          .then((res) => res.json())
-          .catch((e) => {
-            app.innerText =
-              "Encountered an error while reading NFT data from IPFS. See the console.";
-            console.error(e);
-            return;
-          });
+        let name, description, image, external_url;
+        if (!tier.resolvedUri) {
+          ({ name, description, image, external_url } = await fetch(
+            IpfsBaseUrl + JBIpfsDecode(tier.encodedIPFSUri)
+          )
+            .then((res) => res.json())
+            .catch((e) =>
+              console.error(
+                "Encountered an error while reading NFT data from IPFS.",
+                e
+              )
+            ));
+        } else {
+          const resolvedUriMatch = tier.resolvedUri.match(base64RegExp);
+          if (resolvedUriMatch)
+            ({ name, description, image, external_url } = JSON.parse(
+              atob(resolvedUriMatch[3])
+            ));
+          else
+            console.error(
+              "Could not match resolvedUri, using encodedIPFSUri",
+              tier.resolvedUri
+            );
+        }
 
         const nftDiv = document.createElement("div");
         nftDiv.className = "nft-div";
@@ -186,28 +205,38 @@ export const Stake = {
           const mediaDiv = document.createElement("div");
           nftDiv.appendChild(mediaDiv);
           mediaDiv.className = "media-div";
+          console.log(image);
 
-          fetch(image).then((res) => {
-            const mediaType = res.headers.get("Content-Type");
-
-            if (mediaType.startsWith("image/")) {
-              const img = document.createElement("img");
-              img.src = image;
-              img.alt = `${tier.name ? tier.name : nftSymbol.result} artwork`;
-              mediaDiv.appendChild(img);
-            } else if (mediaType.startsWith("video/")) {
-              const video = document.createElement("video");
-              video.controls = true;
-              video.src = image;
-              mediaDiv.appendChild(video);
-            } else if (mediaType.startsWith("text/")) {
-              res.text().then((text) => {
-                const div = document.createElement("div");
-                div.textContent = text;
-                mediaDiv.appendChild(div);
-              });
-            }
-          });
+          const imageMatch = image.match(base64RegExp);
+          if (!imageMatch) {
+            fetch(image)
+              .then((res) => {
+                const mediaType = res.headers.get("Content-Type");
+                if (mediaType.startsWith("image/")) {
+                  const img = document.createElement("img");
+                  img.src = image;
+                  img.alt = `${
+                    tier.name ? tier.name : nftSymbol.result
+                  } artwork`;
+                  mediaDiv.appendChild(img);
+                } else if (mediaType.startsWith("video/")) {
+                  const video = document.createElement("video");
+                  video.controls = true;
+                  video.src = image;
+                  mediaDiv.appendChild(video);
+                } else if (mediaType.startsWith("text/")) {
+                  res.text().then((text) => {
+                    const div = document.createElement("div");
+                    div.textContent = text;
+                    mediaDiv.appendChild(div);
+                  });
+                }
+              })
+              .catch((e) => console.error(e));
+          } else {
+            // TODO: Continue from here.
+            // console.log(atob(imageMatch[3]));
+          }
         }
 
         const textSection = document.createElement("div");
@@ -236,13 +265,14 @@ export const Stake = {
 
         nftDiv.appendChild(textSection);
 
+        let priceLi, supplyLi, votesLi;
         const stats = document.createElement("ul");
-        const priceLi = document.createElement("li");
+        priceLi = document.createElement("li");
         priceLi.textContent = `${formatEther(tier.price)} ${symbol.result}`;
         stats.appendChild(priceLi);
 
         if (tier.initialQuantity !== 1_000_000_000n) {
-          const supplyLi = document.createElement("li");
+          supplyLi = document.createElement("li");
           supplyLi.textContent = `${formatLargeBigInt(
             tier.remainingQuantity
           )}/${formatLargeBigInt(tier.initialQuantity)} left`;
@@ -250,7 +280,7 @@ export const Stake = {
         }
 
         if (tier.votingUnits) {
-          const votesLi = document.createElement("li");
+          votesLi = document.createElement("li");
           votesLi.textContent = `${formatLargeBigInt(tier.votingUnits)} votes`;
           stats.appendChild(votesLi);
         }
@@ -275,44 +305,14 @@ export const Stake = {
           bubbles: true,
         });
 
-        infoButton.onclick = (e) => {
-          e.preventDefault();
+        infoButton.onclick = () =>
           infoButton.dispatchEvent(showInfoDialogEvent);
-        };
-
 
         tiersMenu.appendChild(nftDiv);
       });
     }
 
-    renderNftTiers(firstTierBatch.result);
-
-    // Paginate through remaining NFT tiers
-    if (firstTierBatch.result[25]) {
-      let tiersBatch;
-      for (const i = 0; i === 0 || tiersBatch[25]; i += 25) {
-        tiersBatch = await readContract({
-          contract: JB721StakingDelegate,
-          abi: tiersOfAbi,
-          functionName: "tiersOf",
-          args: [
-            JB721StakingDelegate,
-            [], // _categories not needed
-            true,
-            i,
-            25, // Fetch 25 tiers at a time to avoid reverts.
-          ],
-        }).catch((e) => {
-          app.innerText =
-            "Encountered an error while reading tiers. See the console.";
-          console.error(e);
-          return;
-        });
-
-        console.log(`Batch ${i / 25}: `, tiersBatch)
-        renderNftTiers(tiersBatch);
-      }
-    }
+    renderNftTiers(tiers.result);
 
     /**
      * @typedef {Object} CartProps
@@ -365,7 +365,8 @@ export const Stake = {
           const checkbox = tiersMenu.querySelector(
             `.nft-div[data-id="${tierId}"] input[type="checkbox"]`
           );
-          checkbox?.checked = false;
+
+          if (checkbox) checkbox.checked = false;
           renderCart();
         };
 
@@ -390,9 +391,9 @@ export const Stake = {
         formatUnits(totalCartPrice, Number(decimals.result))
       ).toLocaleString("en", { maximumFractionDigits: 18 })} ${symbol.result}`;
 
-      const exceededBalance = totalCartPrice > balance.result
-      buyButton.disabled = exceededBalance
-      cartTotal.style.color = exceededBalance ? "red" : ""
+      const exceededBalance = totalCartPrice > balance.result;
+      buyButton.disabled = exceededBalance;
+      cartTotal.style.color = exceededBalance ? "red" : "";
 
       buyButton.innerText =
         allowance.result < totalCartPrice
@@ -414,31 +415,34 @@ export const Stake = {
       {
         // Show NFT info dialog when an info button is clicked
         element: tiersMenu,
-        type: 'showInfoDialogEvent',
+        type: "showInfoDialogEvent",
         listener: (e) => {
           nftInfoDialog.innerHTML = [
-            e.detail.titleTextContent ? `<h2>${e.detail.titleTextContent}</h2>` : "",
+            e.detail.titleTextContent
+              ? `<h2>${e.detail.titleTextContent}</h2>`
+              : "",
             e.detail.description ? `<p>${e.detail.description}</p>` : "",
             "<ul>",
             e.detail.supplyString ? `<li>${e.detail.supplyString}</li>` : "",
             e.detail.priceString ? `<li>${e.detail.priceString}</li>` : "",
             e.detail.votesString ? `<li>${e.detail.votesString}</li>` : "",
             "</ul>",
-          ].join("")
+          ].join("");
 
           const closeDialog = document.createElement("button");
           closeDialog.textContent = "X";
           closeDialog.className = "close-button";
-          closeDialog.onclick = () => document.body.removeChild(dialog);
+          closeDialog.onclick = () => nftInfoDialog.close();
           nftInfoDialog.appendChild(closeDialog);
-          nftInfoDialog.showModal()
-        }
+          nftInfoDialog.showModal();
+        },
       },
       {
         // Toggle checked status when an NFT tier is clicked
         element: tiersMenu,
         type: "click",
         listener: (e) => {
+          if (e.target.className === "info-btn") return;
           const closestNftDiv = e.target.closest(".nft-div");
 
           if (closestNftDiv) {
@@ -502,6 +506,7 @@ export const Stake = {
             return;
           }
 
+          buyButton.innerText = `Buy ${nftSymbol.result} NFTs`;
           cartStatusText.innerText = `Staking...`;
           const hexString = encodeAbiParameters(
             parseAbiParameters([
@@ -562,7 +567,7 @@ export const Stake = {
           const checkboxes = document.querySelectorAll(
             '.nft-div input[type="checkbox"]'
           );
-          checkboxes.forEach(c => c.checked = false);
+          checkboxes.forEach((c) => (c.checked = false));
         },
       },
     ];
