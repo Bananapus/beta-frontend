@@ -179,11 +179,16 @@ export const Stake = {
             ));
         } else {
           const resolvedUriMatch = tier.resolvedUri.match(base64RegExp);
-          if (resolvedUriMatch)
+          if (resolvedUriMatch) {
+            let base64UriStr = resolvedUriMatch[3]
+              .replace(/-/g, "+")
+              .replace(/_/g, "/"); // Convert base64url to standard base64 if needed
+            while (base64UriStr.length % 4) base64UriStr += "="; // Add padding if needed
+
             ({ name, description, image, external_url } = JSON.parse(
-              atob(resolvedUriMatch[3])
+              atob(base64UriStr)
             ));
-          else
+          } else
             console.error(
               "Could not match resolvedUri, using encodedIPFSUri",
               tier.resolvedUri
@@ -233,9 +238,11 @@ export const Stake = {
               })
               .catch((e) => console.error(e));
           } else {
-            let base64Str = imageMatch[3].replace(/-/g, "+").replace(/_/g, "/"); // Convert base64url to standard base64
-            while (base64Str.length % 4) base64Str += "="; // Add padding if needed
-            const svgString = atob(base64Str);
+            let base64SvgStr = imageMatch[3]
+              .replace(/-/g, "+")
+              .replace(/_/g, "/"); // Convert base64url to standard base64
+            while (base64SvgStr.length % 4) base64SvgStr += "="; // Add padding if needed
+            const svgString = atob(base64SvgStr);
 
             // Parse to avoid security risks of arbitrary HTML injection (SVG only)
             const parser = new DOMParser();
