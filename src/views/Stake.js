@@ -205,7 +205,6 @@ export const Stake = {
           const mediaDiv = document.createElement("div");
           nftDiv.appendChild(mediaDiv);
           mediaDiv.className = "media-div";
-          console.log(image);
 
           const imageMatch = image.match(base64RegExp);
           if (!imageMatch) {
@@ -234,8 +233,30 @@ export const Stake = {
               })
               .catch((e) => console.error(e));
           } else {
-            // TODO: Continue from here.
-            // console.log(atob(imageMatch[3]));
+            let base64Str = imageMatch[3].replace(/-/g, "+").replace(/_/g, "/"); // Convert base64url to standard base64
+            while (base64Str.length % 4) base64Str += "="; // Add padding if needed
+            const svgString = atob(base64Str);
+
+            // Parse to avoid security risks of arbitrary HTML injection (SVG only)
+            const parser = new DOMParser();
+            const svgElement = parser.parseFromString(
+              svgString,
+              "image/svg+xml"
+            ).documentElement;
+
+            svgElement.setAttribute("width", "100%");
+            svgElement.setAttribute("height", "100%");
+            svgElement.setAttribute("viewBox", "0 0 120 120");
+
+            // Handle nested SVG if necessary
+            const nestedSvg = svgElement.querySelector("svg");
+            if (nestedSvg) {
+              nestedSvg.setAttribute("viewBox", "0 0 120 120");
+              nestedSvg.setAttribute("width", "100%");
+              nestedSvg.setAttribute("height", "100%");
+            }
+
+            mediaDiv.appendChild(svgElement);
           }
         }
 

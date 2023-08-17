@@ -291,7 +291,8 @@ input {
 
 .nft-div .media-div img,
 .nft-div .media-div video,
-.nft-div .media-div div {
+.nft-div .media-div div,
+.nft-div .media-div svg {
   max-width: 100%;
   max-height: 100%;
 }
