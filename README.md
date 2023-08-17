@@ -21,6 +21,12 @@ This frontend must allow users to connect their wallet, with which they can:
 - The user can register their holdings by calling `JB721StakingDistributor.claim(...)`.
 - Allow users to collect rewards by calling `JB721StakingDistributor.collect(...)`. Users should be able to claim past rewards by passing previous `_cycle`s
 
+## Summary
+
+`721-staking-delegate`: Governance NFTs (stake your JBX/NANA/ETC) and vote in onchain (or offchain) governance
+`Distributor`: Distribute rewards to governance users directly (not to their DAO)
+`Tentacles`: Supercharge the above 2 and allow NFT holders to do the same thing on other chains (ex. Optimism, Arbitrum, Polygon, BASE)
+
 ## bananapus-721-delegate
 
 Stake by paying a project with an attached `banapus-721-staking-delegate`. The staking delegate only accepts payments of a defined `stakingToken`.

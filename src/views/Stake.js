@@ -1,5 +1,6 @@
 import {
   getAccount,
+  readContract,
   readContracts,
   waitForTransaction,
   writeContract,
@@ -24,6 +25,7 @@ import { JBIpfsDecode, formatLargeBigInt } from "../utils";
 export const Stake = {
   render: `
 <h1>Stake</h1>
+<dialog id="nft-info-dialog"></dialog>
 <div id="stake-container">
   <div id="tiers-menu"></div>
   <div id="cart-menu">
@@ -34,13 +36,13 @@ export const Stake = {
       <li id="cart-total">Cart Total: -</li>
       <li id="cart-status-text" style="font-style: italic"></li>
     </ul>
-    <button id="reset-button">Reset</button>
+    <button id="reset-cart-button">Reset</button>
     <button id="buy-button">Buy</button>
   </div>
 </div>
 `,
   setup: async () => {
-    const app = document.getElementById("app")
+    const app = document.getElementById("app");
     const account = getAccount();
     if (!account.isConnected) {
       app.innerHTML = `
@@ -58,12 +60,17 @@ export const Stake = {
     const tiersMenu = document.getElementById("tiers-menu");
     const userBalance = document.getElementById("user-balance");
     const buyButton = document.getElementById("buy-button");
-    const resetButton = document.getElementById("reset-button");
+    const resetCartButton = document.getElementById("reset-cart-button");
     const cartItems = document.getElementById("cart-items");
     const cartTotal = document.getElementById("cart-total");
     const cartStatusText = document.getElementById("cart-status-text");
+    const nftInfoDialog = document.getElementById("nft-info-dialog");
 
-    const [tiers, token, decimals] = await readContracts({
+    const IpfsBaseUrl = "https://ipfs.io/ipfs/";
+    let currentAllowance;
+
+    // Fetch initial information
+    const [firstTierBatch, token, decimals, nftSymbol] = await readContracts({
       contracts: [
         {
           address: JB721StakingDelegate,
@@ -74,7 +81,7 @@ export const Stake = {
             [], // _categories not needed
             true,
             0,
-            100, // Fetch all tiers. Large numbers cause revert.
+            25, // Fetch 25 tiers. More tiers will revert with _includeResolvedUri enabled.
           ],
         },
         {
@@ -87,11 +94,20 @@ export const Stake = {
           abi: [parseAbiItem("function decimals() returns (uint256)")],
           functionName: "decimals",
         },
+        {
+          address: JB721StakingDelegate,
+          abi: [parseAbiItem("function symbol() returns (string)")],
+          functionName: "symbol",
+        },
       ],
+    }).catch((e) => {
+      app.innerText =
+        "Encountered an error while reading from contracts. See the console.";
+      console.error(e);
+      return;
     });
 
-    console.log(tiers)
-
+    // Fetch information from the token contract
     const [balance, symbol, allowance] = await readContracts({
       contracts: [
         {
@@ -118,144 +134,185 @@ export const Stake = {
           args: [account.address, JBERC20PaymentTerminal],
         },
       ],
+    }).catch((e) => {
+      app.innerText =
+        "Encountered an error while reading from contracts. See the console.";
+      console.error(e);
+      return;
     });
 
-    const IpfsBaseUrl = "https://ipfs.io/ipfs/";
-    // Build and add each NFT tier
-    tiers.result.forEach((tier) => {
-      fetch(IpfsBaseUrl + JBIpfsDecode(tier.encodedIPFSUri))
-        .then((res) => res.json())
-        .then((nftUri) => {
-          const nftDiv = document.createElement("div");
-          nftDiv.className = "nft-div";
-          nftDiv.dataset.id = tier.id;
-          nftDiv.dataset.price = tier.price;
-          nftDiv.dataset.remainingQuantity = tier.remainingQuantity;
-
-          // TODO: Fullscreen button shows dialog with full metadata.
-          const infoButton = document.createElement("button");
-          infoButton.innerText = "…";
-          infoButton.classList.add("info-btn");
-          nftDiv.appendChild(infoButton);
-
-          const checkbox = document.createElement("input");
-          checkbox.type = "checkbox";
-          nftDiv.appendChild(checkbox);
-
-          if (nftUri.image) {
-            const mediaDiv = document.createElement("div");
-            nftDiv.appendChild(mediaDiv);
-            mediaDiv.className = "media-div";
-
-            fetch(nftUri.image).then((res) => {
-              const mediaType = res.headers.get("Content-Type");
-
-              if (mediaType.startsWith("image/")) {
-                const img = document.createElement("img");
-                img.src = nftUri.image;
-                img.alt = `${tier.name ? tier.name : "NFT"} artwork`;
-                mediaDiv.appendChild(img);
-              } else if (mediaType.startsWith("video/")) {
-                const video = document.createElement("video");
-                video.controls = true;
-                video.src = nftUri.image;
-                mediaDiv.appendChild(video);
-              } else if (mediaType.startsWith("text/")) {
-                response.text().then((text) => {
-                  const div = document.createElement("div");
-                  div.textContent = text;
-                  mediaDiv.appendChild(div);
-                });
-              }
-            });
-          }
-
-          const textSection = document.createElement("div");
-          textSection.classList.add("text-section");
-          const title = document.createElement("a");
-          const titleText = nftUri.name
-            ? nftUri.name
-            : `Tier ${tier.id.toString()}`;
-          title.textContent = titleText;
-          nftDiv.dataset.title = titleText;
-          title.classList.add("title");
-          textSection.appendChild(title);
-
-          if (nftUri.external_url) {
-            title.href = nftUri.external_url;
-            title.target = "_blank";
-            title.classList.add("external-link");
-          }
-          const description = document.createElement("p");
-          description.textContent = nftUri.description
-            ? nftUri.description
-            : "";
-          description.classList.add("description");
-          textSection.appendChild(description);
-          nftDiv.appendChild(textSection);
-
-          const stats = document.createElement("ul");
-          const price = document.createElement("li");
-          price.textContent = `${formatEther(tier.price)} ${symbol.result}`;
-          stats.appendChild(price);
-          if (tier.initialQuantity !== BigInt(1000000000)) {
-            const supply = document.createElement("li");
-            supply.textContent = `${formatLargeBigInt(
-              tier.remainingQuantity
-            )}/${formatLargeBigInt(tier.initialQuantity)} left`;
-            stats.appendChild(supply);
-          }
-          if (tier.votingUnits) {
-            const votes = document.createElement("li");
-            votes.textContent = `${formatLargeBigInt(tier.votingUnits)} votes`;
-            stats.appendChild(votes);
-          }
-          nftDiv.appendChild(stats);
-
-          infoButton.onclick = (e) => {
-            e.preventDefault();
-            const dialog = document.createElement("dialog");
-            dialog.innerHTML = `
-              <h2>${titleText}</h2>
-              ${nftUri.description ? `<p>${nftUri.description}</p>` : ""}
-              <ul>
-                <li>Price: ${formatEther(tier.price)} ${symbol.result}</li>
-                ${
-                  tier.initialQuantity !== BigInt(1000000000)
-                    ? `<li>Remaining supply: ${formatLargeBigInt(
-                        tier.remainingQuantity
-                      )}/${formatLargeBigInt(tier.initialQuantity)}</li>`
-                    : ""
-                }
-                ${
-                  tier.votingUnits
-                    ? `<li>Voting power: ${formatLargeBigInt(
-                        tier.votingUnits
-                      )}</li>`
-                    : ""
-                }
-              </ul>`;
-
-            const closeDialog = document.createElement("button");
-            closeDialog.textContent = "X";
-            closeDialog.className = "close-button";
-            closeDialog.onclick = () => document.body.removeChild(dialog);
-            dialog.appendChild(closeDialog);
-
-            document.body.appendChild(dialog);
-            dialog.showModal();
-          };
-
-          tiersMenu.appendChild(nftDiv);
-        });
-    });
-
+    // Perform initial UI updates
+    currentAllowance = allowance.result;
+    console.log("Allowance: ", currentAllowance);
     buyButton.innerText =
-      allowance.result === BigInt(0) ? `Approve ${symbol.result}` : `Buy`;
-
+      currentAllowance === BigInt(0)
+        ? `Approve ${symbol.result}`
+        : `Buy ${nftSymbol.result} NFTs`;
     userBalance.innerText = `Your Balance: ${parseFloat(
       formatUnits(balance.result, Number(decimals.result))
     ).toLocaleString("en", { maximumFractionDigits: 18 })} ${symbol.result}`;
+
+    console.log("First tier batch: ", firstTierBatch);
+
+    /**
+     * @description Render an array of NFT tiers.
+     * @argument tiers An array of tiers.
+     */
+    function renderNftTiers(tiers) {
+      tiers.forEach(async (tier) => {
+        const { image, name, external_url, description } = await fetch(
+          IpfsBaseUrl + JBIpfsDecode(tier.encodedIPFSUri)
+        )
+          .then((res) => res.json())
+          .catch((e) => {
+            app.innerText =
+              "Encountered an error while reading NFT data from IPFS. See the console.";
+            console.error(e);
+            return;
+          });
+
+        const nftDiv = document.createElement("div");
+        nftDiv.className = "nft-div";
+        nftDiv.dataset.id = tier.id;
+        nftDiv.dataset.price = tier.price;
+        nftDiv.dataset.remainingQuantity = tier.remainingQuantity;
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        nftDiv.appendChild(checkbox);
+
+        // Handle various metadata types
+        if (image) {
+          const mediaDiv = document.createElement("div");
+          nftDiv.appendChild(mediaDiv);
+          mediaDiv.className = "media-div";
+
+          fetch(image).then((res) => {
+            const mediaType = res.headers.get("Content-Type");
+
+            if (mediaType.startsWith("image/")) {
+              const img = document.createElement("img");
+              img.src = image;
+              img.alt = `${tier.name ? tier.name : nftSymbol.result} artwork`;
+              mediaDiv.appendChild(img);
+            } else if (mediaType.startsWith("video/")) {
+              const video = document.createElement("video");
+              video.controls = true;
+              video.src = image;
+              mediaDiv.appendChild(video);
+            } else if (mediaType.startsWith("text/")) {
+              res.text().then((text) => {
+                const div = document.createElement("div");
+                div.textContent = text;
+                mediaDiv.appendChild(div);
+              });
+            }
+          });
+        }
+
+        const textSection = document.createElement("div");
+        textSection.classList.add("text-section");
+        const titleAnchor = document.createElement("a");
+        const titleTextContent = name
+          ? name
+          : `${nftSymbol.result} tier ${tier.id.toString()}`;
+        titleAnchor.textContent = titleTextContent;
+        nftDiv.dataset.title = titleTextContent;
+        titleAnchor.classList.add("title");
+        textSection.appendChild(titleAnchor);
+
+        if (external_url) {
+          titleAnchor.href = external_url;
+          titleAnchor.target = "_blank";
+          titleAnchor.classList.add("external-link");
+        }
+
+        if (description) {
+          const descriptionParagraph = document.createElement("p");
+          descriptionParagraph.textContent = description ? description : "";
+          descriptionParagraph.classList.add("description");
+          textSection.appendChild(descriptionParagraph);
+        }
+
+        nftDiv.appendChild(textSection);
+
+        const stats = document.createElement("ul");
+        const priceLi = document.createElement("li");
+        priceLi.textContent = `${formatEther(tier.price)} ${symbol.result}`;
+        stats.appendChild(priceLi);
+
+        if (tier.initialQuantity !== 1_000_000_000n) {
+          const supplyLi = document.createElement("li");
+          supplyLi.textContent = `${formatLargeBigInt(
+            tier.remainingQuantity
+          )}/${formatLargeBigInt(tier.initialQuantity)} left`;
+          stats.appendChild(supplyLi);
+        }
+
+        if (tier.votingUnits) {
+          const votesLi = document.createElement("li");
+          votesLi.textContent = `${formatLargeBigInt(tier.votingUnits)} votes`;
+          stats.appendChild(votesLi);
+        }
+
+        nftDiv.appendChild(stats);
+
+        // Create and append info popup button. On click, emit an event which
+        // triggers a dialog with information about this NFT.
+        const infoButton = document.createElement("button");
+        infoButton.innerText = "…";
+        infoButton.className = "info-btn";
+        nftDiv.appendChild(infoButton);
+
+        const showInfoDialogEvent = new CustomEvent("showInfoDialogEvent", {
+          detail: {
+            titleTextContent,
+            description,
+            priceString: priceLi?.textContent,
+            supplyString: supplyLi?.textContent,
+            votesString: votesLi?.textContent,
+          },
+          bubbles: true,
+        });
+
+        infoButton.onclick = (e) => {
+          e.preventDefault();
+          infoButton.dispatchEvent(showInfoDialogEvent);
+        };
+
+
+        tiersMenu.appendChild(nftDiv);
+      });
+    }
+
+    renderNftTiers(firstTierBatch.result);
+
+    // Paginate through remaining NFT tiers
+    if (firstTierBatch.result[25]) {
+      let tiersBatch;
+      for (const i = 0; i === 0 || tiersBatch[25]; i += 25) {
+        tiersBatch = await readContract({
+          contract: JB721StakingDelegate,
+          abi: tiersOfAbi,
+          functionName: "tiersOf",
+          args: [
+            JB721StakingDelegate,
+            [], // _categories not needed
+            true,
+            i,
+            25, // Fetch 25 tiers at a time to avoid reverts.
+          ],
+        }).catch((e) => {
+          app.innerText =
+            "Encountered an error while reading tiers. See the console.";
+          console.error(e);
+          return;
+        });
+
+        console.log(`Batch ${i / 25}: `, tiersBatch)
+        renderNftTiers(tiersBatch);
+      }
+    }
 
     /**
      * @typedef {Object} CartProps
@@ -276,45 +333,44 @@ export const Stake = {
       }
 
       let totalCartPrice = BigInt(0);
-
       cartItems.innerHTML = "";
 
       cart.forEach((nft, tierId) => {
-        const li = document.createElement("li");
+        const cartItem = document.createElement("li");
 
-        const itemDetail = document.createElement("div");
-        itemDetail.className = "item-detail";
+        const inputAndTitleDiv = document.createElement("div");
+        inputAndTitleDiv.className = "item-detail";
 
         const input = document.createElement("input");
         input.type = "number";
         input.value = nft.quantity;
         input.oninput = () => {
-          if (input.value <= 0) input.value = 1;
+          if (input.value < 1) input.value = 1;
           cart.get(tierId).quantity = input.value;
           renderCart();
         };
-        itemDetail.appendChild(input);
+        inputAndTitleDiv.appendChild(input);
 
-        const title = document.createElement("p");
-        title.innerText = "x " + nft.title;
-        title.classList.add("cart-title");
-        itemDetail.appendChild(title);
-        li.appendChild(itemDetail);
+        const cartItemTitle = document.createElement("p");
+        cartItemTitle.innerText = `x ${nft.title}`;
+        cartItemTitle.classList.add("cart-title");
+        inputAndTitleDiv.appendChild(cartItemTitle);
+        cartItem.appendChild(inputAndTitleDiv);
 
-        const removeButton = document.createElement("button");
-        removeButton.className = "close-button";
-        removeButton.innerText = "X";
-        removeButton.onclick = () => {
+        const removeFromCartButton = document.createElement("button");
+        removeFromCartButton.className = "close-button";
+        removeFromCartButton.innerText = "X";
+        removeFromCartButton.onclick = () => {
           cart.delete(tierId);
           const checkbox = tiersMenu.querySelector(
             `.nft-div[data-id="${tierId}"] input[type="checkbox"]`
           );
-          if (checkbox) checkbox.checked = false;
+          checkbox?.checked = false;
           renderCart();
         };
 
-        const price = document.createElement("p");
-        price.innerText = `${parseFloat(
+        const cartItemPriceP = document.createElement("p");
+        cartItemPriceP.innerText = `${parseFloat(
           formatUnits(
             BigInt(nft.price) * BigInt(nft.quantity),
             Number(decimals.result)
@@ -322,12 +378,11 @@ export const Stake = {
         ).toLocaleString("en", { maximumFractionDigits: 18 })} ${
           symbol.result
         }`;
-        price.className = "cart-item-price";
-        li.appendChild(price);
+        cartItemPriceP.className = "cart-item-price";
+        cartItem.appendChild(cartItemPriceP);
+        cartItem.appendChild(removeFromCartButton);
 
-        li.appendChild(removeButton);
-
-        cartItems.appendChild(li);
+        cartItems.appendChild(cartItem);
         totalCartPrice += BigInt(nft.price) * BigInt(nft.quantity);
       });
 
@@ -335,13 +390,14 @@ export const Stake = {
         formatUnits(totalCartPrice, Number(decimals.result))
       ).toLocaleString("en", { maximumFractionDigits: 18 })} ${symbol.result}`;
 
-      if (totalCartPrice > balance.result) {
-        buyButton.disabled = true;
-        cartTotal.style.color = "red";
-      } else {
-        buyButton.disabled = false;
-        cartTotal.style.color = "";
-      }
+      const exceededBalance = totalCartPrice > balance.result
+      buyButton.disabled = exceededBalance
+      cartTotal.style.color = exceededBalance ? "red" : ""
+
+      buyButton.innerText =
+        allowance.result < totalCartPrice
+          ? `Approve ${symbol.result}`
+          : `Buy ${nftSymbol.result} NFTs`;
     }
 
     renderCart();
@@ -356,6 +412,30 @@ export const Stake = {
     /** @type {EventListenerObjs} */
     const eventListeners = [
       {
+        // Show NFT info dialog when an info button is clicked
+        element: tiersMenu,
+        type: 'showInfoDialogEvent',
+        listener: (e) => {
+          nftInfoDialog.innerHTML = [
+            e.detail.titleTextContent ? `<h2>${e.detail.titleTextContent}</h2>` : "",
+            e.detail.description ? `<p>${e.detail.description}</p>` : "",
+            "<ul>",
+            e.detail.supplyString ? `<li>${e.detail.supplyString}</li>` : "",
+            e.detail.priceString ? `<li>${e.detail.priceString}</li>` : "",
+            e.detail.votesString ? `<li>${e.detail.votesString}</li>` : "",
+            "</ul>",
+          ].join("")
+
+          const closeDialog = document.createElement("button");
+          closeDialog.textContent = "X";
+          closeDialog.className = "close-button";
+          closeDialog.onclick = () => document.body.removeChild(dialog);
+          nftInfoDialog.appendChild(closeDialog);
+          nftInfoDialog.showModal()
+        }
+      },
+      {
+        // Toggle checked status when an NFT tier is clicked
         element: tiersMenu,
         type: "click",
         listener: (e) => {
@@ -366,9 +446,7 @@ export const Stake = {
               'input[type="checkbox"]'
             );
 
-            if (e.target !== checkbox) {
-              checkbox.checked = !checkbox.checked;
-            }
+            if (e.target !== checkbox) checkbox.checked = !checkbox.checked;
 
             if (checkbox.checked)
               cart.set(closestNftDiv.dataset.id, {
@@ -383,9 +461,9 @@ export const Stake = {
         },
       },
       {
+        // Buy the NFTs currently in the cart, approving tokens as needed.
         element: buyButton,
         type: "click",
-        // Buy NFTs in cart.
         listener: async () => {
           if (cart.size === 0) return;
 
@@ -396,11 +474,13 @@ export const Stake = {
           buyButton.disabled = true;
 
           try {
-            if (allowance.result < cartTotalCost) {
+            if (currentAllowance < cartTotalCost) {
               cartStatusText.innerText = `Approving ${symbol.result}...`;
+              // Add note for MetaMask users.
               if (account.connector?.name === "MetaMask")
                 cartStatusText.innerText +=
                   " Select 'Use default' in Metamask.";
+
               const { hash } = await writeContract({
                 address: token.result,
                 abi: [
@@ -416,7 +496,7 @@ export const Stake = {
               await waitForTransaction({ hash, confirmations: 1 });
             }
           } catch (e) {
-            console.log(e);
+            console.error(e);
             buyButton.disabled = false;
             cartStatusText.innerText = `${symbol.result} approval failed. Try again.`;
             return;
@@ -439,7 +519,7 @@ export const Stake = {
                   BigInt(e[0]),
                   e[1].price,
                 ])
-              ), // Finally, JB721StakingTier[]
+              ),
             ]
           );
 
@@ -448,7 +528,7 @@ export const Stake = {
             cartTotalCost,
             token.result,
             account.address,
-            BigInt(0),
+            0n,
             false,
             "Paid from bananapus.com",
             hexString,
@@ -463,10 +543,10 @@ export const Stake = {
             });
             cartStatusText.innerText = "Staking transaction pending...";
             await waitForTransaction({ hash, confirmations: 1 });
-            resetButton.click();
+            resetCartButton.click();
             cartStatusText.innerText = "Success!";
           } catch (e) {
-            console.log(e);
+            console.error(e);
             cartStatusText.innerText = "Staking failed.";
           } finally {
             buyButton.disabled = false;
@@ -474,7 +554,7 @@ export const Stake = {
         },
       },
       {
-        element: resetButton,
+        element: resetCartButton,
         type: "click",
         listener: () => {
           cart.clear();
@@ -482,17 +562,17 @@ export const Stake = {
           const checkboxes = document.querySelectorAll(
             '.nft-div input[type="checkbox"]'
           );
-          checkboxes.forEach((checkbox) => {
-            checkbox.checked = false;
-          });
+          checkboxes.forEach(c => c.checked = false);
         },
       },
     ];
 
+    // Add all event listeners defined above.
     eventListeners.forEach((e) =>
       e.element.addEventListener(e.type, e.listener)
     );
 
+    // Return function to clean event listeners when the page changes.
     return () => {
       eventListeners.forEach((e) =>
         e.element.removeEventListener(e.type, e.listener)

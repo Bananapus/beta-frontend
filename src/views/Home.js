@@ -31,7 +31,7 @@ export const Home = {
     <a href="#/stake">Stake</a>.
   </li>
   <li>
-    To vest and collect staking rewards, visit <a href="#/collect">Collect</a>.
+    To manage your stake and collect rewards, visit <a href="#/manage">Manage</a>.
   </li>
 </ul>
 <p>

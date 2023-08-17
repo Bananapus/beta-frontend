@@ -77,7 +77,6 @@ export const Manage = {
     console.log(transfersToAccount);
 
     const heldTokenIds = new Map();
-
     transfersToAccount.forEach((t) => {
       if (heldTokenIds.has(t.args.tokenId)) {
         if (heldTokenIds.get(t.args.tokenId) < t.blockNumber)
@@ -89,8 +88,9 @@ export const Manage = {
         if (heldTokenIds.get(f.args.tokenId) < f.blockNumber)
           heldTokenIds.delete(f.args.tokenId);
     });
-
     console.log(heldTokenIds.keys());
+
+    // TODO: Fetch metadata and render each held NFT, with checkboxes.
 
     const [
       tierMultiplier,
