@@ -5,13 +5,20 @@ import {
   readContracts,
   writeContract,
 } from "@wagmi/core";
-import { parseAbiItem, formatEther, parseAbi } from "viem";
+import {
+  parseAbiItem,
+  formatEther,
+  encodeAbiParameters,
+  parseAbiParameter,
+} from "viem";
 import {
   JB721StakingDelegate,
   JB721StakingDistributor,
   BASE64_REGEXP,
   IPFS_BASE_URL,
   JBERC20PaymentTerminal,
+  TESTNET_PROJECT_ID,
+  BANANAPUS_PROJECT_ID,
 } from "../consts";
 import { JBIpfsDecode, formatLargeBigInt } from "../utils";
 
@@ -46,6 +53,7 @@ export const Manage = {
     const [
       transfersToAccount,
       transfersFromAccount,
+      erc20TransfersToDistributor,
       tierMultiplier,
       terminalToken,
     ] = await Promise.all([
@@ -60,13 +68,22 @@ export const Manage = {
         },
       }),
       publicClient.getLogs({
-        address: JB721StakingDelegate,
+        address: JB721StakingDistributor,
         event: parseAbiItem(
           "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
         ),
         fromBlock: 9507473n, // TODO: Deployment block of JB721StakingDelegate
         args: {
           from: account.address,
+        },
+      }),
+      publicClient.getLogs({
+        event: parseAbiItem(
+          "event Transfer(address indexed _from, address indexed _to, uint256 _value)"
+        ),
+        fromBlock: 9507473n, // TODO: Deployment block of distributor
+        args: {
+          _to: JB721StakingDistributor,
         },
       }),
       readContract({
@@ -80,6 +97,11 @@ export const Manage = {
         functionName: "token",
       }),
     ]);
+
+    // Unique token addresses
+    const distributorTokens = [
+      ...new Set(erc20TransfersToDistributor.map((t) => t.address)),
+    ];
 
     const heldTokenIds = new Map();
     transfersToAccount.forEach((t) => {
@@ -150,13 +172,15 @@ export const Manage = {
       )
     );
 
-    const [symbol] = await readContracts({
-      contracts: [{
-        address: terminalToken,
-        abi: [parseAbiItem("function symbol() returns (string)")],
-        functionName: 'symbol'
-      }]
-    })
+    const [terminalTokenSymbol] = await readContracts({
+      contracts: [
+        {
+          address: terminalToken,
+          abi: [parseAbiItem("function symbol() returns (string)")],
+          functionName: "symbol",
+        },
+      ],
+    });
 
     // Render tiers and tokens
     Array.from(tokenIdsWithinTiers.entries()).forEach(
@@ -260,17 +284,17 @@ export const Manage = {
         }
 
         // Initialize textdiv
-        const textDiv = document.createElement("div")
-        textDiv.style.textAlign = "center"
-        textDiv.style.marginLeft = "20px"
+        const textDiv = document.createElement("div");
+        textDiv.style.textAlign = "center";
+        textDiv.style.marginLeft = "20px";
 
         // Add title
         const tierName = document.createElement("p");
         tierName.innerText = `Tier ${tierId.toLocaleString()}${
           name ? ": " + name : ""
         }`;
-        tierName.style.fontWeight = "bold"
-        tierName.style.margin = "5px 0px"
+        tierName.style.fontWeight = "bold";
+        tierName.style.margin = "5px 0px";
         textDiv.appendChild(tierName);
 
         // Add 'select all' checkbox
@@ -292,21 +316,27 @@ export const Manage = {
             ).filter((c) => c.checked).length
           }/${tokenIds.length}) selected`);
         textDiv.appendChild(selectedSpan);
+        textDiv.onclick = (e) => {
+          if (e.target != checkbox) checkbox.click();
+        };
+        textDiv.style.cursor = "pointer";
 
-        tierDiv.appendChild(textDiv)
+        tierDiv.appendChild(textDiv);
 
-        const descriptionParagraph = document.createElement("p")
-        descriptionParagraph.innerText = description
-        descriptionParagraph.className = "description"
-        descriptionParagraph.style.flexGrow = "1"
-        descriptionParagraph.style.marginLeft = "20px"
-        tierDiv.appendChild(descriptionParagraph)
+        const descriptionParagraph = document.createElement("p");
+        descriptionParagraph.innerText = description;
+        descriptionParagraph.className = "description";
+        descriptionParagraph.style.flexGrow = "1";
+        descriptionParagraph.style.marginLeft = "20px";
+        tierDiv.appendChild(descriptionParagraph);
 
         // Add price and voting power
         const statsList = document.createElement("ul");
-        statsList.style.marginRight = "10px"
+        statsList.style.marginRight = "10px";
         const priceLi = document.createElement("li");
-        priceLi.textContent = `${formatEther(tierData.price)} ${symbol.result}`;
+        priceLi.textContent = `${formatEther(tierData.price)} ${
+          terminalTokenSymbol.result
+        }`;
         statsList.appendChild(priceLi);
         if (tierData.votingUnits) {
           const votesLi = document.createElement("li");
@@ -331,12 +361,13 @@ export const Manage = {
 
         // Add token IDs within tier
         const tokensInTier = document.createElement("ul");
-        tokensInTier.style.listStyle = "none"
+        tokensInTier.style.listStyle = "none";
         tokenIds.forEach((tokenId) => {
           const tokenLi = document.createElement("li");
 
           const tokenCheckbox = document.createElement("input");
           tokenCheckbox.type = "checkbox";
+          tokenCheckbox.dataset.tokenId = tokenId;
           tokenLi.appendChild(tokenCheckbox);
 
           const tokenName = document.createElement("span");
@@ -419,11 +450,64 @@ export const Manage = {
     console.log(claimedLogs);
 
     distributorStats.innerHTML = `
-      Begin vesting before
       <li>Round ${currentRound.result.toLocaleString()}</li>
       <li>${vestingRounds.result.toLocaleString()} rounds to vest</li>
       <li>${roundDuration.result.toLocaleString()} blocks per round</li>
     `;
+
+    redeemNfts.onclick = async () => {
+      redeemNfts.disabled = true;
+
+      const selectedTokenIds = Array.from(
+        yourNfts.querySelectorAll("input[type='checkbox']:checked")
+      )
+        .filter((c) => c.dataset.tokenId)
+        .map((c) => BigInt(c.dataset.tokenId));
+      console.log(selectedTokenIds);
+
+      const redemptionWeight = await readContract({
+        address: JB721StakingDelegate,
+        abi: [
+          parseAbiItem(
+            "function redemptionWeightOf(address, uint256[] _tokenIds) view returns (uint256 weight)"
+          ),
+        ],
+        functionName: "redemptionWeightOf",
+        args: [JB721StakingDelegate, selectedTokenIds],
+      });
+      console.log(redemptionWeight);
+
+      const hexString = encodeAbiParameters(
+        parseAbiParameters("bytes32, bytes4, uint256[]"),
+        [
+          BigInt(BANANAPUS_PROJECT_ID),
+          "0x00000000", // type(IJB721Delegate).interfaceId
+          selectedTokenIds,
+        ]
+      );
+
+      await writeContract({
+        address: JBERC20PaymentTerminal,
+        abi: [
+          parseAbiItem(
+            "function redeemTokensOf(address _holder, uint256 _projectId, uint256 _tokenCount, address _token, uint256 _minReturnedTokens, address _beneficiary, string _memo, bytes _metadata) returns (uint256 reclaimAmount)"
+          ),
+        ],
+        functionName: "redeemTokensOf",
+        args: [
+          account.address,
+          TESTNET_PROJECT_ID,
+          0n,
+          "0x0000000000000000000000000000000000000000",
+          0n,
+          account.address,
+          "Redeemed from bananapus.com",
+          hexString,
+        ],
+      });
+
+      redeemNfts.disabled = false;
+    };
 
     beginVesting.onclick = () => {
       writeContract({
