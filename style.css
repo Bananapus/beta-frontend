@@ -141,6 +141,12 @@ input {
   border-radius: 2px;
 }
 
+input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
 /* Staking page */
 #stake-container {
   display: flex;
@@ -272,15 +278,12 @@ input {
 }
 
 .nft-div input[type="checkbox"] {
-  width: 20px;
-  height: 20px;
-  cursor: pointer;
   align-self: center;
   margin-left: 10px;
   flex-shrink: 0;
 }
 
-.nft-div .media-div {
+.media-div {
   width: 120px;
   height: 120px;
   margin-left: 10px;
@@ -289,19 +292,13 @@ input {
   align-items: center;
 }
 
-.nft-div .media-div img,
-.nft-div .media-div video,
-.nft-div .media-div div,
-.nft-div .media-div svg {
+.media-div img,
+.media-div video,
+.media-div div,
+.media-div svg {
   max-width: 100%;
   max-height: 100%;
 }
-
-/* .nft-div img {
-  width: 100px;
-  height: 100px;
-  margin-left: 10px;
-} */
 
 .text-section {
   flex-grow: 1;
@@ -328,7 +325,7 @@ input {
   color: royalblue;
 }
 
-.text-section .description {
+.description {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -357,4 +354,21 @@ input {
   padding: 0 5px;
   margin: 0;
   font-size: 0.8rem;
+}
+
+/* Manage page styling */
+
+.tier-div {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #a1a09d;
+  padding: 10px;
+}
+
+#your-nfts {
+  overflow-y: auto;
+  max-height: 65vh;
+  border: 1px solid #a1a09d;
 }

@@ -18,6 +18,8 @@ import {
   tiersOfAbi,
   BANANAPUS_PROJECT_ID,
   TESTNET_PROJECT_ID,
+  IPFS_BASE_URL,
+  BASE64_REGEXP
 } from "../consts";
 import { JBIpfsDecode, formatLargeBigInt } from "../utils";
 
@@ -65,8 +67,6 @@ export const Stake = {
     const cartStatusText = document.getElementById("cart-status-text");
     const nftInfoDialog = document.getElementById("nft-info-dialog");
 
-    const IpfsBaseUrl = "https://ipfs.io/ipfs/";
-    const base64RegExp = /^data:(.+?)(;base64)?,(.*)$/;
     let currentAllowance;
 
     // Fetch initial information
@@ -168,7 +168,7 @@ export const Stake = {
         let name, description, image, external_url;
         if (!tier.resolvedUri) {
           ({ name, description, image, external_url } = await fetch(
-            IpfsBaseUrl + JBIpfsDecode(tier.encodedIPFSUri)
+            IPFS_BASE_URL + JBIpfsDecode(tier.encodedIPFSUri)
           )
             .then((res) => res.json())
             .catch((e) =>
@@ -178,7 +178,7 @@ export const Stake = {
               )
             ));
         } else {
-          const resolvedUriMatch = tier.resolvedUri.match(base64RegExp);
+          const resolvedUriMatch = tier.resolvedUri.match(BASE64_REGEXP);
           if (resolvedUriMatch) {
             let base64UriStr = resolvedUriMatch[3]
               .replace(/-/g, "+")
@@ -211,7 +211,7 @@ export const Stake = {
           nftDiv.appendChild(mediaDiv);
           mediaDiv.className = "media-div";
 
-          const imageMatch = image.match(base64RegExp);
+          const imageMatch = image.match(BASE64_REGEXP);
           if (!imageMatch) {
             fetch(image)
               .then((res) => {
@@ -333,8 +333,10 @@ export const Stake = {
           bubbles: true,
         });
 
-        infoButton.onclick = () =>
+        infoButton.onclick = (e) => {
+          e.stopPropagation();
           infoButton.dispatchEvent(showInfoDialogEvent);
+        };
 
         tiersMenu.appendChild(nftDiv);
       });
@@ -470,7 +472,6 @@ export const Stake = {
         element: tiersMenu,
         type: "click",
         listener: (e) => {
-          if (e.target.className === "info-btn") return;
           const closestNftDiv = e.target.closest(".nft-div");
 
           if (closestNftDiv) {

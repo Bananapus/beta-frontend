@@ -1,5 +1,8 @@
 import { parseAbiItem } from "viem";
 
+export const IPFS_BASE_URL = "https://ipfs.io/ipfs/";
+export const BASE64_REGEXP = /^data:(.+?)(;base64)?,(.*)$/;
+
 export const TESTNET = true;
 export const BANANAPUS_PROJECT_ID = TESTNET ? 601 : 488;
 
