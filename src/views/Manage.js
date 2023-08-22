@@ -7,9 +7,9 @@ import {
 } from "@wagmi/core";
 import {
   parseAbiItem,
-  formatEther,
   encodeAbiParameters,
-  parseAbiParameter,
+  parseAbiParameters,
+  formatUnits,
 } from "viem";
 import {
   JB721StakingDelegate,
@@ -18,7 +18,6 @@ import {
   IPFS_BASE_URL,
   JBERC20PaymentTerminal,
   TESTNET_PROJECT_ID,
-  BANANAPUS_PROJECT_ID,
 } from "../consts";
 import { JBIpfsDecode, formatLargeBigInt } from "../utils";
 
@@ -27,11 +26,12 @@ export const Manage = {
 <h1>Manage</h1>
 <h2>Your NFTs</h2>
 <div id="your-nfts"></div>
-<button id="redeem-nfts">Redeem Selected NFTs</button>
+<p id="status-text" style='color: red'></p>
+<button id="redeem-nfts">Redeem selected NFTs</button>
 <h2>Rewards</h2>
 <ul id="distributor-stats"></ul>
-<button id="begin-vesting">Begin Vesting</div>
-<button id="collect-rewards">Collect Rewards</button>
+<button id="begin-vesting">Begin vesting</div>
+<button id="collect-rewards">Collect rewards</button>
 <p id="reward-status-text"></p>
 `,
   setup: async () => {
@@ -68,7 +68,7 @@ export const Manage = {
         },
       }),
       publicClient.getLogs({
-        address: JB721StakingDistributor,
+        address: JB721StakingDelegate,
         event: parseAbiItem(
           "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
         ),
@@ -134,6 +134,7 @@ export const Manage = {
     const redeemNfts = document.getElementById("redeem-nfts");
     const yourNfts = document.getElementById("your-nfts");
     const distributorStats = document.getElementById("distributor-stats");
+    const statusText = document.getElementById("status-text");
 
     const tokenIdsWithinTiers = new Map();
     await Promise.all(
@@ -172,12 +173,19 @@ export const Manage = {
       )
     );
 
-    const [terminalTokenSymbol] = await readContracts({
+    const [terminalTokenSymbol, terminalTokenDecimals] = await readContracts({
       contracts: [
         {
           address: terminalToken,
           abi: [parseAbiItem("function symbol() returns (string)")],
           functionName: "symbol",
+        },
+        {
+          address: terminalToken,
+          abi: [
+            parseAbiItem("function decimals() public view returns (uint8)"),
+          ],
+          functionName: "decimals",
         },
       ],
     });
@@ -186,7 +194,6 @@ export const Manage = {
     Array.from(tokenIdsWithinTiers.entries()).forEach(
       async ([tierId, tokenIds]) => {
         const tierData = tierDataMap.get(tierId);
-        console.log(`Creating with tier ${tierId} and tokenIds ${tokenIds}`);
         let name, description, image, external_url;
         if (!tierData.resolvedUri) {
           ({ name, description, image, external_url } = await fetch(
@@ -215,8 +222,6 @@ export const Manage = {
               tierId.resolvedUri
             );
         }
-
-        console.log(name, description, image, external_url);
 
         const tierDiv = document.createElement("div");
         tierDiv.className = "tier-div";
@@ -334,9 +339,10 @@ export const Manage = {
         const statsList = document.createElement("ul");
         statsList.style.marginRight = "10px";
         const priceLi = document.createElement("li");
-        priceLi.textContent = `${formatEther(tierData.price)} ${
-          terminalTokenSymbol.result
-        }`;
+        priceLi.textContent = `${formatUnits(
+          tierData.price,
+          Number(terminalTokenDecimals.result)
+        )} ${terminalTokenSymbol.result}`;
         statsList.appendChild(priceLi);
         if (tierData.votingUnits) {
           const votesLi = document.createElement("li");
@@ -440,94 +446,121 @@ export const Manage = {
       currentRound
     );
 
-    const claimedLogs = await publicClient.getLogs({
-      address: JB721StakingDistributor,
-      event: parseAbiItem(
-        "event claimed(uint256 indexed tokenId, address token, uint256 amount, uint256 vestingReleaseRound)"
-      ),
-      fromBlock: startingBlock.result,
-    });
-    console.log(claimedLogs);
-
     distributorStats.innerHTML = `
       <li>Round ${currentRound.result.toLocaleString()}</li>
       <li>${vestingRounds.result.toLocaleString()} rounds to vest</li>
       <li>${roundDuration.result.toLocaleString()} blocks per round</li>
     `;
 
-    redeemNfts.onclick = async () => {
-      redeemNfts.disabled = true;
-
-      const selectedTokenIds = Array.from(
+    function getSelectedTokenIds() {
+      return Array.from(
         yourNfts.querySelectorAll("input[type='checkbox']:checked")
       )
         .filter((c) => c.dataset.tokenId)
         .map((c) => BigInt(c.dataset.tokenId));
-      console.log(selectedTokenIds);
+    }
 
-      const redemptionWeight = await readContract({
-        address: JB721StakingDelegate,
-        abi: [
-          parseAbiItem(
-            "function redemptionWeightOf(address, uint256[] _tokenIds) view returns (uint256 weight)"
-          ),
-        ],
-        functionName: "redemptionWeightOf",
-        args: [JB721StakingDelegate, selectedTokenIds],
-      });
-      console.log(redemptionWeight);
+    redeemNfts.onclick = async () => {
+      redeemNfts.disabled = true;
+      redeemNfts.innerText = "Checking redemption weight...";
 
-      const hexString = encodeAbiParameters(
-        parseAbiParameters("bytes32, bytes4, uint256[]"),
-        [
-          BigInt(BANANAPUS_PROJECT_ID),
-          "0x00000000", // type(IJB721Delegate).interfaceId
-          selectedTokenIds,
-        ]
-      );
+      try {
+        const selectedTokenIds = getSelectedTokenIds();
+        console.log(selectedTokenIds);
 
-      await writeContract({
-        address: JBERC20PaymentTerminal,
-        abi: [
-          parseAbiItem(
-            "function redeemTokensOf(address _holder, uint256 _projectId, uint256 _tokenCount, address _token, uint256 _minReturnedTokens, address _beneficiary, string _memo, bytes _metadata) returns (uint256 reclaimAmount)"
-          ),
-        ],
-        functionName: "redeemTokensOf",
-        args: [
-          account.address,
-          TESTNET_PROJECT_ID,
-          0n,
-          "0x0000000000000000000000000000000000000000",
-          0n,
-          account.address,
-          "Redeemed from bananapus.com",
-          hexString,
-        ],
-      });
+        const redemptionWeight = await readContract({
+          address: JB721StakingDelegate,
+          abi: [
+            parseAbiItem(
+              "function redemptionWeightOf(address, uint256[] _tokenIds) view returns (uint256 weight)"
+            ),
+          ],
+          functionName: "redemptionWeightOf",
+          args: [JB721StakingDelegate, selectedTokenIds],
+        });
 
-      redeemNfts.disabled = false;
+        const confirmRedeem = window.confirm(
+          `Redeem ${selectedTokenIds.length} NFTs for ${formatUnits(
+            redemptionWeight,
+            Number(terminalTokenDecimals.result)
+          )} ${terminalTokenSymbol.result}?`
+        );
+
+        if (!confirmRedeem) {
+          redeemNfts.innerText = "Redeem selected NFTs";
+          redeemNfts.disabled = false;
+          statusText.innerText = "Redemption cancelled.";
+          return;
+        }
+      } catch (e) {
+        console.error(e);
+        statusText.innerText =
+          "Failed to calculate redemption weight. Try again.";
+        redeemNfts.innerText = "Redeem selected NFTs";
+        redeemNfts.disabled = false;
+        return;
+      }
+
+      try {
+        const hexString = encodeAbiParameters(
+          parseAbiParameters("bytes32, bytes4, uint256[]"),
+          [
+            "0x" + "00".repeat(32),
+            "0xfbb38e03", // type(IJB721Delegate).interfaceId
+            selectedTokenIds,
+          ]
+        );
+
+        await writeContract({
+          address: JBERC20PaymentTerminal,
+          abi: [
+            parseAbiItem(
+              "function redeemTokensOf(address _holder, uint256 _projectId, uint256 _tokenCount, address _token, uint256 _minReturnedTokens, address _beneficiary, string _memo, bytes _metadata) returns (uint256 reclaimAmount)"
+            ),
+          ],
+          functionName: "redeemTokensOf",
+          args: [
+            account.address,
+            TESTNET_PROJECT_ID,
+            0n,
+            "0x0000000000000000000000000000000000000000",
+            0n,
+            account.address,
+            "Redeemed from bananapus.com",
+            hexString,
+          ],
+        });
+      } catch (e) {
+        console.error(e);
+        statusText.innerText = "Failed to redeem. See console.";
+      } finally {
+        redeemNfts.disabled = false;
+      }
     };
 
     beginVesting.onclick = () => {
+      const selectedTokenIds = getSelectedTokenIds()
+
       writeContract({
         contract: JB721StakingDistributor,
         abi: parseAbiItem(
           "function beginVesting(uint256[] _tokenIds, address[] _tokens)"
         ),
         functionName: "beginVesting",
-        args: [[], [stakingToken]],
+        args: [selectedTokenIds, distributorTokens],
       });
     };
 
     collectRewards.onclick = async () => {
+      const selectedTokenIds = getSelectedTokenIds()
+
       await writeContract({
         contract: JB721StakingDistributor,
         functionName: "collectVestedRewards",
         abi: parseAbiItem(
           "function collectVestedRewards(uint256[] _tokenIds, address[] _tokens, uint256 _round)"
         ),
-        args: [],
+        args: [selectedTokenIds, distributorStats],
       });
     };
 
