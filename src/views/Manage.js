@@ -25,12 +25,18 @@ export const Manage = {
   render: `
 <h1>Manage</h1>
 <h2>Your NFTs</h2>
+<p>Select and redeem NFTs to reclaim your funds. This burns your NFTs.</p>
 <div id="your-nfts"></div>
 <p id="status-text" style='color: red'></p>
 <button id="redeem-nfts">Redeem selected NFTs</button>
 <h2>Rewards</h2>
+<p>
+  Bananapus distributes ERC-20 rewards in rounds. The more NFTs you hold, the
+  more rewards you can claim each round. You can stake a claim in a future round
+  or collect rewards you've already claimed below.
+</p>
 <ul id="distributor-stats"></ul>
-<button id="begin-vesting">Begin vesting</div>
+<button id="begin-vesting">Claim future rewards</div>
 <button id="collect-rewards">Collect rewards</button>
 <p id="reward-status-text"></p>
 `,
@@ -56,6 +62,7 @@ export const Manage = {
       erc20TransfersToDistributor,
       tierMultiplier,
       terminalToken,
+      claimedEvents,
     ] = await Promise.all([
       publicClient.getLogs({
         address: JB721StakingDelegate,
@@ -96,7 +103,16 @@ export const Manage = {
         abi: [parseAbiItem("function token() returns (address)")],
         functionName: "token",
       }),
+      publicClient.getLogs({
+        address: JB721StakingDistributor,
+        event: parseAbiItem(
+          "event claimed(uint256 indexed tokenId, address token, uint256 amount, uint256 vestingReleaseRound)"
+        ),
+        fromBlock: 9507473n, // TODO: Deployment block of JB721StakingDistributor
+      }),
     ]);
+
+    console.log(claimedEvents);
 
     // Unique token addresses
     const distributorTokens = [
@@ -447,9 +463,9 @@ export const Manage = {
     );
 
     distributorStats.innerHTML = `
-      <li>Round ${currentRound.result.toLocaleString()}</li>
-      <li>${vestingRounds.result.toLocaleString()} rounds to vest</li>
-      <li>${roundDuration.result.toLocaleString()} blocks per round</li>
+      <li>Blocks per round: ${roundDuration.result.toLocaleString()}</li>
+      <li>Current round: ${currentRound.result.toLocaleString()}</li>
+      <li>Rounds until you can collect: ${vestingRounds.result.toLocaleString()}</li>
     `;
 
     function getSelectedTokenIds() {
@@ -535,53 +551,112 @@ export const Manage = {
         statusText.innerText = "Failed to redeem. See console.";
       } finally {
         redeemNfts.disabled = false;
+        redeemNfts.innerText = "Redeem selected NFTs";
       }
     };
 
-    beginVesting.onclick = () => {
-      const selectedTokenIds = getSelectedTokenIds()
+    beginVesting.onclick = async () => {
+      beginVesting.innerText = "Vesting...";
+      beginVesting.disabled = true;
+      let availableToBeginVesting = new Set(heldTokenIds.keys());
 
-      writeContract({
-        contract: JB721StakingDistributor,
-        abi: parseAbiItem(
-          "function beginVesting(uint256[] _tokenIds, address[] _tokens)"
-        ),
-        functionName: "beginVesting",
-        args: [selectedTokenIds, distributorTokens],
+      const currentRoundStartBlock =
+        startingBlock + roundDuration * currentRound;
+      claimedEvents.forEach((e) => {
+        if (e.blockNumber > currentRoundStartBlock)
+          availableToBeginVesting.delete(e.args.tokenId);
       });
+
+      try {
+        await writeContract({
+          contract: JB721StakingDistributor,
+          abi: [
+            parseAbiItem(
+              "function beginVesting(uint256[] _tokenIds, address[] _tokens)"
+            ),
+          ],
+          functionName: "beginVesting",
+          args: [[...availableToBeginVesting], distributorTokens],
+        });
+      } catch (e) {
+        console.error(e);
+        statusText.innerText = "Failed to begin vesting. Check the console.";
+      } finally {
+        beginVesting.disabled = false;
+        beginVesting.innerText = "Claim future rewards";
+      }
     };
 
     collectRewards.onclick = async () => {
-      const selectedTokenIds = getSelectedTokenIds()
+      collectRewards.disabled = true;
+      collectRewards.innerText = "Finding available rewards...";
+      let availableRewards;
 
-      await writeContract({
-        contract: JB721StakingDistributor,
-        functionName: "collectVestedRewards",
-        abi: parseAbiItem(
-          "function collectVestedRewards(uint256[] _tokenIds, address[] _tokens, uint256 _round)"
-        ),
-        args: [selectedTokenIds, distributorStats],
-      });
-    };
+      try {
+        availableRewards = new Map();
+        claimedEvents.forEach((e) => {
+          const { tokenId, amount, token, vestingReleaseRound } = e.args;
+          if (
+            heldTokenIds.has(tokenId) &&
+            vestingReleaseRound <= currentRound.result &&
+            amount != 0n
+          ) {
+            const x = availableRewards.get(vestingReleaseRound);
+            availableRewards.set(vestingReleaseRound, {
+              tokenIds: [tokenId, ...(x?.tokenIds ?? [])],
+              tokens: [token, ...(x?.tokens ?? [])],
+              totalAmount: amount + (x?.totalAmount ?? 0n),
+            });
+          }
+        });
+      } catch (e) {
+        console.error(e);
+        statusText.innerText =
+          "Error while checking available rewards. See the console.";
+        collectRewards.innerText = "Collect rewards";
+        collectRewards.disabled = false;
+        return;
+      }
 
-    /**
-     * @typedef {Object} EventListenerObjs
-     * @property {HTMLElement} element - The target element.
-     * @property {string} type - The event type.
-     * @property {Function} listener - The function to invoke.
-     */
+      if (!availableRewards || availableRewards.size === 0) {
+        statusText.innerText = "No rewards available.";
+        collectRewards.innerText = "Collect rewards";
+        collectRewards.disabled = false;
+        return;
+      }
 
-    /** @type {EventListenerObjs[]} */
-    const eventListeners = [];
+      console.log(availableRewards);
+      // TODO: This will eventually give the user the option of which cycles they'd like to collect
+      const claimCycle = availableRewards.keys().next().value;
+      statusText.innerText = `Claiming rewards for cycle ${availableRewards
+        .keys()
+        .next()
+        .value.toLocaleString()}`;
 
-    eventListeners.forEach((e) =>
-      e.element.addEventListener(e.type, e.listener)
-    );
-
-    return () => {
-      eventListeners.forEach((e) => {
-        e.element.removeEventListener(e.type, e.listener);
-      });
+      try {
+        await writeContract({
+          contract: JB721StakingDistributor,
+          functionName: "collectVestedRewards",
+          abi: [
+            parseAbiItem(
+              "function collectVestedRewards(uint256[] _tokenIds, address[] _tokens, uint256 _round)"
+            ),
+          ],
+          args: [
+            availableRewards.get(claimCycle).tokenIds,
+            availableRewards.get(claimCycle).tokens,
+            claimCycle,
+          ],
+        });
+        statusText.innerText = "Success.";
+      } catch (e) {
+        console.error(e);
+        statusText.innerText = "Failed to claim rewards. See console.";
+      } finally {
+        collectRewards.innerText = "Collect rewards";
+        collectRewards.disabled = false;
+      }
     };
   },
+
 };
