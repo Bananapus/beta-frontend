@@ -37,7 +37,7 @@ export const Manage = {
 </p>
 <ul id="distributor-stats"></ul>
 <button id="begin-vesting">Claim future rewards</div>
-<button id="collect-rewards">Collect rewards</button>
+<button id="collect-rewards">Collect claimed rewards</button>
 <p id="reward-status-text"></p>
 `,
   setup: async () => {
@@ -613,14 +613,14 @@ export const Manage = {
         console.error(e);
         statusText.innerText =
           "Error while checking available rewards. See the console.";
-        collectRewards.innerText = "Collect rewards";
+        collectRewards.innerText = "Collect claimed rewards";
         collectRewards.disabled = false;
         return;
       }
 
       if (!availableRewards || availableRewards.size === 0) {
         statusText.innerText = "No rewards available.";
-        collectRewards.innerText = "Collect rewards";
+        collectRewards.innerText = "Collect claimed rewards";
         collectRewards.disabled = false;
         return;
       }
@@ -653,7 +653,7 @@ export const Manage = {
         console.error(e);
         statusText.innerText = "Failed to claim rewards. See console.";
       } finally {
-        collectRewards.innerText = "Collect rewards";
+        collectRewards.innerText = "Collect claimed rewards";
         collectRewards.disabled = false;
       }
     };
