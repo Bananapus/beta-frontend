@@ -6,15 +6,15 @@ export const BASE64_REGEXP = /^data:(.+?)(;base64)?,(.*)$/;
 export const TESTNET = true;
 export const BANANAPUS_PROJECT_ID = TESTNET ? 601 : 488;
 
-export const TESTNET_PROJECT_ID = 1198
+export const TESTNET_PROJECT_ID = 1214
 export const JB721StakingDelegate = TESTNET
-  ? "0x3C031b74E404a59D6d113168cd54319f1dEEb524"
+  ? "0x3281688433Be4409A1E64bD604605a57328db416"
   : "";
 export const JB721StakingDistributor = TESTNET
-  ? "0xA5083956BE860c7C1Ddd60c13660cA2d406141E3"
+  ? "0xf34a740d111f164d7bCf39f8d7B026Fe58b4752E"
   : "";
 export const JBERC20PaymentTerminal = TESTNET
-  ? "0xA7E85edE65837634679B38B9Cda44a2Df78e656d"
+  ? "0xdb4CAB6dCAE90f6a0A82D3E37114e2317062Ca41"
   : "";
 
 export const payAbi = [

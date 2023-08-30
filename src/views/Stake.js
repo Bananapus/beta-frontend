@@ -539,21 +539,23 @@ export const Stake = {
           cartStatusText.innerText = `Staking...`;
           const hexString = encodeAbiParameters(
             parseAbiParameters([
-              "bytes32, bytes32, bytes4, bool, address, JB721StakingTier[]",
+              "bytes32, bytes32, bytes4, bool, address, JB721StakingTier[], address, bytes",
               "struct JB721StakingTier { uint16 tierId; uint128 amount; }",
             ]),
             [
               "0x" + BANANAPUS_PROJECT_ID.toString(16).padStart(64, "0"), // First 32 bytes should be the Bananapus project ID (488).
               "0x" + "0".repeat(64), // Skip next 32 bytes.
               "0x00000000", // 4 bytes for interfaceId. TODO add the real one once deployed.
-              false, // Next ignored bool
-              "0x0000000000000000000000000000000000000000", // Next address of voting delegate
+              false, // ignored bool
+              "0x0000000000000000000000000000000000000000", // address of voting delegate
               [...cart.entries()].flatMap((e) =>
                 Array.from({ length: e[1].quantity }, () => [
                   BigInt(e[0]),
                   e[1].price,
                 ])
               ),
+              "0x0000000000000000000000000000000000000000", // No LockManager for now
+              "", // No _lockManagerData for now.
             ]
           );
 
@@ -568,6 +570,8 @@ export const Stake = {
             hexString,
           ];
 
+          console.log(payArgs)
+
           try {
             const { hash } = await writeContract({
               address: JBERC20PaymentTerminal,
@@ -581,7 +585,7 @@ export const Stake = {
             cartStatusText.innerText = "Success!";
           } catch (e) {
             console.error(e);
-            cartStatusText.innerText = "Staking failed.";
+            cartStatusText.innerText = "Staking failed. See console.";
           } finally {
             buyButton.disabled = false;
           }

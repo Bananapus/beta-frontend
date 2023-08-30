@@ -13,10 +13,10 @@ import { publicProvider } from "@wagmi/core/providers/public";
 import { infuraProvider } from "@wagmi/core/providers/infura";
 // import { WalletConnectConnector } from "@wagmi/connectors/walletConnect";
 import { SafeConnector } from "@wagmi/connectors/safe";
-import { LedgerConnector } from "@wagmi/connectors/ledger";
+// import { LedgerConnector } from "@wagmi/connectors/ledger";
 import { TESTNET } from "./consts";
 
-const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
+// const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
 let initialized = false;
 
 /** @type {Connector[]} */
@@ -38,7 +38,7 @@ function initWalletClient(connectors) {
 
   connectors.push(new InjectedConnector({ chains }));
   connectors.push(new SafeConnector({ chains }));
-  connectors.push(new LedgerConnector({ chains, projectId }));
+  // connectors.push(new LedgerConnector({ chains, projectId }));
   /*connectors.push(
     new WalletConnectConnector({
       chains,
