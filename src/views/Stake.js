@@ -19,7 +19,7 @@ import {
   BANANAPUS_PROJECT_ID,
   TESTNET_PROJECT_ID,
   IPFS_BASE_URL,
-  BASE64_REGEXP
+  BASE64_REGEXP,
 } from "../consts";
 import { JBIpfsDecode, formatLargeBigInt } from "../utils";
 
@@ -463,7 +463,7 @@ export const Stake = {
           closeDialog.textContent = "X";
           closeDialog.className = "close-button";
           closeDialog.onclick = () => nftInfoDialog.close();
-          nftInfoDialog.appendChild(closeDialog);
+          nftInfoDialog.insertBefore(closeDialog, nftInfoDialog.firstChild);
           nftInfoDialog.showModal();
         },
       },
@@ -527,6 +527,7 @@ export const Stake = {
 
               cartStatusText.innerText = "Approval transaction pending...";
               await waitForTransaction({ hash, confirmations: 1 });
+              currentAllowance = cartTotalCost
             }
           } catch (e) {
             console.error(e);
@@ -545,7 +546,7 @@ export const Stake = {
             [
               "0x" + BANANAPUS_PROJECT_ID.toString(16).padStart(64, "0"), // First 32 bytes should be the Bananapus project ID (488).
               "0x" + "0".repeat(64), // Skip next 32 bytes.
-              "0x00000000", // 4 bytes for interfaceId. TODO add the real one once deployed.
+              "0xd3dd68c3", // 4 bytes for interfaceId. TODO add the real one once deployed.
               false, // ignored bool
               "0x0000000000000000000000000000000000000000", // address of voting delegate
               [...cart.entries()].flatMap((e) =>
@@ -570,7 +571,7 @@ export const Stake = {
             hexString,
           ];
 
-          console.log(payArgs)
+          console.log(payArgs);
 
           try {
             const { hash } = await writeContract({
