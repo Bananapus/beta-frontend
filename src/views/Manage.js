@@ -3,6 +3,7 @@ import {
   getPublicClient,
   readContract,
   readContracts,
+  waitForTransaction,
   writeContract,
 } from "@wagmi/core";
 import {
@@ -27,8 +28,8 @@ export const Manage = {
 <h2>Your NFTs</h2>
 <p>Select and redeem NFTs to reclaim your funds. This burns your NFTs.</p>
 <div id="your-nfts"></div>
-<p id="status-text" style='color: red'></p>
 <button id="redeem-nfts">Redeem selected NFTs</button>
+<p id="redeem-status-text"></p>
 <h2>Rewards</h2>
 <p>
   Bananapus distributes ERC-20 rewards in rounds. The more NFTs you hold, the
@@ -145,12 +146,14 @@ export const Manage = {
 
     app.style.maxWidth = "100%";
 
+    const yourNfts = document.getElementById("your-nfts");
+    const redeemNfts = document.getElementById("redeem-nfts");
+    const redeemStatusText = document.getElementById("redeem-status-text");
+
+    const distributorStats = document.getElementById("distributor-stats");
     const beginVesting = document.getElementById("begin-vesting");
     const collectRewards = document.getElementById("collect-rewards");
-    const redeemNfts = document.getElementById("redeem-nfts");
-    const yourNfts = document.getElementById("your-nfts");
-    const distributorStats = document.getElementById("distributor-stats");
-    const statusText = document.getElementById("status-text");
+    const rewardStatusText = document.getElementById("reward-status-text");
 
     const tokenIdsWithinTiers = new Map();
     await Promise.all(
@@ -477,13 +480,16 @@ export const Manage = {
     }
 
     redeemNfts.onclick = async () => {
+      const selectedTokenIds = getSelectedTokenIds();
+      if (selectedTokenIds.length === 0) {
+        redeemStatusText.innerText = "No NFTs selected.";
+        return;
+      }
+
       redeemNfts.disabled = true;
       redeemNfts.innerText = "Checking redemption weight...";
 
       try {
-        const selectedTokenIds = getSelectedTokenIds();
-        console.log(selectedTokenIds);
-
         const redemptionWeight = await readContract({
           address: JB721StakingDelegate,
           abi: [
@@ -505,12 +511,12 @@ export const Manage = {
         if (!confirmRedeem) {
           redeemNfts.innerText = "Redeem selected NFTs";
           redeemNfts.disabled = false;
-          statusText.innerText = "Redemption cancelled.";
+          redeemStatusText.innerText = "Redemption cancelled.";
           return;
         }
       } catch (e) {
         console.error(e);
-        statusText.innerText =
+        redeemStatusText.innerText =
           "Failed to calculate redemption weight. Try again.";
         redeemNfts.innerText = "Redeem selected NFTs";
         redeemNfts.disabled = false;
@@ -527,7 +533,7 @@ export const Manage = {
           ]
         );
 
-        await writeContract({
+        const { hash } = await writeContract({
           address: JBERC20PaymentTerminal,
           abi: [
             parseAbiItem(
@@ -546,9 +552,13 @@ export const Manage = {
             hexString,
           ],
         });
+
+        redeemNfts.innerText = "Redeeming...";
+        await waitForTransaction({ hash });
+        redeemStatusText.innerText = "Success.";
       } catch (e) {
         console.error(e);
-        statusText.innerText = "Failed to redeem. See console.";
+        redeemStatusText.innerText = "Failed to redeem. See console.";
       } finally {
         redeemNfts.disabled = false;
         redeemNfts.innerText = "Redeem selected NFTs";
@@ -556,31 +566,43 @@ export const Manage = {
     };
 
     beginVesting.onclick = async () => {
-      beginVesting.innerText = "Vesting...";
+      beginVesting.innerText = "Claiming...";
       beginVesting.disabled = true;
       let availableToBeginVesting = new Set(heldTokenIds.keys());
 
       const currentRoundStartBlock =
-        startingBlock + roundDuration * currentRound;
+        startingBlock.result + roundDuration.result * currentRound.result;
       claimedEvents.forEach((e) => {
+        console.log(e.blockNumber, currentRoundStartBlock);
         if (e.blockNumber > currentRoundStartBlock)
           availableToBeginVesting.delete(e.args.tokenId);
       });
 
+      if (availableToBeginVesting.size === 0) {
+        rewardStatusText.innerText = "No NFTs to claim with this round.";
+        beginVesting.innerText = "Claim future rewards";
+        beginVesting.disabled = false;
+        return;
+      }
+
       try {
-        await writeContract({
-          contract: JB721StakingDistributor,
+        const { hash } = await writeContract({
+          address: JB721StakingDistributor,
           abi: [
             parseAbiItem(
-              "function beginVesting(uint256[] _tokenIds, address[] _tokens)"
+              "function beginVesting(uint256[] calldata _tokenIds, address[] calldata _tokens)"
             ),
           ],
           functionName: "beginVesting",
           args: [[...availableToBeginVesting], distributorTokens],
         });
+
+        await waitForTransaction({ hash });
+        rewardStatusText.innerText = "Success";
       } catch (e) {
         console.error(e);
-        statusText.innerText = "Failed to begin vesting. Check the console.";
+        rewardStatusText.innerText =
+          "Failed to begin vesting. Check the console.";
       } finally {
         beginVesting.disabled = false;
         beginVesting.innerText = "Claim future rewards";
@@ -611,7 +633,7 @@ export const Manage = {
         });
       } catch (e) {
         console.error(e);
-        statusText.innerText =
+        rewardStatusText.innerText =
           "Error while checking available rewards. See the console.";
         collectRewards.innerText = "Collect claimed rewards";
         collectRewards.disabled = false;
@@ -619,7 +641,7 @@ export const Manage = {
       }
 
       if (!availableRewards || availableRewards.size === 0) {
-        statusText.innerText = "No rewards available.";
+        rewardStatusText.innerText = "No rewards available.";
         collectRewards.innerText = "Collect claimed rewards";
         collectRewards.disabled = false;
         return;
@@ -628,14 +650,14 @@ export const Manage = {
       console.log(availableRewards);
       // TODO: This will eventually give the user the option of which cycles they'd like to collect
       const claimCycle = availableRewards.keys().next().value;
-      statusText.innerText = `Claiming rewards for cycle ${availableRewards
+      rewardStatusText.innerText = `Claiming rewards for cycle ${availableRewards
         .keys()
         .next()
         .value.toLocaleString()}`;
 
       try {
         await writeContract({
-          contract: JB721StakingDistributor,
+          address: JB721StakingDistributor,
           functionName: "collectVestedRewards",
           abi: [
             parseAbiItem(
@@ -648,15 +670,14 @@ export const Manage = {
             claimCycle,
           ],
         });
-        statusText.innerText = "Success.";
+        rewardStatusText.innerText = "Success.";
       } catch (e) {
         console.error(e);
-        statusText.innerText = "Failed to claim rewards. See console.";
+        redeemStatusText.innerText = "Failed to claim rewards. See console.";
       } finally {
         collectRewards.innerText = "Collect claimed rewards";
         collectRewards.disabled = false;
       }
     };
   },
-
 };
