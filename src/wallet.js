@@ -12,7 +12,7 @@ import { goerli } from "@wagmi/core/chains";
 import { publicProvider } from "@wagmi/core/providers/public";
 import { infuraProvider } from "@wagmi/core/providers/infura";
 // import { WalletConnectConnector } from "@wagmi/connectors/walletConnect";
-import { SafeConnector } from "@wagmi/connectors/safe";
+import { SafeConnector } from "@wagmi/core/connectors/safe";
 // import { LedgerConnector } from "@wagmi/connectors/ledger";
 import { TESTNET } from "./consts";
 

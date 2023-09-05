@@ -19,17 +19,19 @@ import {
   IPFS_BASE_URL,
   JBERC20PaymentTerminal,
   TESTNET_PROJECT_ID,
+  TESTNET,
 } from "../consts";
 import { JBIpfsDecode, formatLargeBigInt } from "../utils";
+import { erc20ABI } from "@wagmi/core";
 
 export const Manage = {
   render: `
 <h1>Manage</h1>
 <h2>Your NFTs</h2>
-<p>Select and redeem NFTs to reclaim your funds. This burns your NFTs.</p>
 <div id="your-nfts"></div>
+<p>Select and redeem NFTs to reclaim your funds. This burns your NFTs.</p>
+<i><p id="redeem-status-text"></p></i>
 <button id="redeem-nfts">Redeem selected NFTs</button>
-<p id="redeem-status-text"></p>
 <h2>Rewards</h2>
 <p>
   Bananapus distributes ERC-20 rewards in rounds. The more NFTs you hold, the
@@ -37,9 +39,14 @@ export const Manage = {
   or collect rewards you've already claimed below.
 </p>
 <ul id="distributor-stats"></ul>
+<p>Available tokens:</p>
+<ul id="token-options"><p>No tokens found.</p></ul>
+<i><p id="reward-status-text"></p></i>
 <button id="begin-vesting">Claim future rewards</div>
 <button id="collect-rewards">Collect claimed rewards</button>
-<p id="reward-status-text"></p>
+<div id="collectable-rewards-list"></div>
+<button id="prev-round">Previous Round</button>
+<button id="next-round">Next Round</button>
 `,
   setup: async () => {
     const account = getAccount();
@@ -55,36 +62,99 @@ export const Manage = {
       return;
     }
 
-    // Fetch transfer events
     const publicClient = getPublicClient();
+
+    let heldTokenIds = new Map();
+    let tokenIdsWithinTiers = new Map();
+    async function updateTokenIdsAndTiers() {
+      heldTokenIds = new Map();
+      tokenIdsWithinTiers = new Map();
+
+      try {
+        const [transfersToAccount, transfersFromAccount] = await Promise.all([
+          publicClient.getLogs({
+            address: JB721StakingDelegate,
+            event: parseAbiItem(
+              "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+            ),
+            fromBlock: 9507473n, // TODO: Deployment block of JB721StakingDelegate
+            args: {
+              to: account.address,
+            },
+          }),
+          publicClient.getLogs({
+            address: JB721StakingDelegate,
+            event: parseAbiItem(
+              "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+            ),
+            fromBlock: 9507473n, // TODO: Deployment block of JB721StakingDelegate
+            args: {
+              from: account.address,
+            },
+          }),
+        ]);
+
+        transfersToAccount.forEach((t) => {
+          if (heldTokenIds.has(t.args.tokenId)) {
+            if (heldTokenIds.get(t.args.tokenId) < t.blockNumber)
+              heldTokenIds.set(t.args.tokenId, t.blockNumber);
+          } else heldTokenIds.set(t.args.tokenId, t.blockNumber);
+        });
+        transfersFromAccount.forEach((f) => {
+          if (heldTokenIds.has(f.args.tokenId))
+            if (heldTokenIds.get(f.args.tokenId) < f.blockNumber)
+              heldTokenIds.delete(f.args.tokenId);
+        });
+
+        if (heldTokenIds.size === 0) {
+          app.innerHTML = `
+        <h1>Manage</h1>
+        <em>
+          <p style='color: #f08000'>
+            Could not find NFTs for ${account.address}
+          </p>
+        </em>`;
+          return;
+        }
+
+        await Promise.all(
+          Array.from(heldTokenIds.keys()).map((id) =>
+            readContract({
+              address: JB721StakingDelegate,
+              abi: [
+                parseAbiItem(
+                  "function tierIdOfToken(uint256 _tokenId) pure returns (uint256)"
+                ),
+              ],
+              functionName: "tierIdOfToken",
+              args: [id],
+            }).then((tier) => {
+              tokenIdsWithinTiers.set(tier, [
+                id,
+                ...(tokenIdsWithinTiers.get(tier) ?? []),
+              ]);
+            })
+          )
+        );
+      } catch (e) {
+        console.error(e);
+        app.innerHTML = `
+          <h1>Manage</h1>
+          <em>
+            <p style='color: #f08000'>
+              Encountered an error while fetching NFTs for ${account.address}. See the console.
+            </p>
+          </em>`;
+        return;
+      }
+    }
+
     const [
-      transfersToAccount,
-      transfersFromAccount,
       erc20TransfersToDistributor,
       tierMultiplier,
       terminalToken,
       claimedEvents,
     ] = await Promise.all([
-      publicClient.getLogs({
-        address: JB721StakingDelegate,
-        event: parseAbiItem(
-          "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
-        ),
-        fromBlock: 9507473n, // TODO: Deployment block of JB721StakingDelegate
-        args: {
-          to: account.address,
-        },
-      }),
-      publicClient.getLogs({
-        address: JB721StakingDelegate,
-        event: parseAbiItem(
-          "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
-        ),
-        fromBlock: 9507473n, // TODO: Deployment block of JB721StakingDelegate
-        args: {
-          from: account.address,
-        },
-      }),
       publicClient.getLogs({
         event: parseAbiItem(
           "event Transfer(address indexed _from, address indexed _to, uint256 _value)"
@@ -111,41 +181,17 @@ export const Manage = {
         ),
         fromBlock: 9507473n, // TODO: Deployment block of JB721StakingDistributor
       }),
+      updateTokenIdsAndTiers(),
     ]);
 
-    console.log(claimedEvents);
+    console.log("Claim events:", claimedEvents);
 
     // Unique token addresses
     const distributorTokens = [
       ...new Set(erc20TransfersToDistributor.map((t) => t.address)),
     ];
 
-    const heldTokenIds = new Map();
-    transfersToAccount.forEach((t) => {
-      if (heldTokenIds.has(t.args.tokenId)) {
-        if (heldTokenIds.get(t.args.tokenId) < t.blockNumber)
-          heldTokenIds.set(t.args.tokenId, t.blockNumber);
-      } else heldTokenIds.set(t.args.tokenId, t.blockNumber);
-    });
-    transfersFromAccount.forEach((f) => {
-      if (heldTokenIds.has(f.args.tokenId))
-        if (heldTokenIds.get(f.args.tokenId) < f.blockNumber)
-          heldTokenIds.delete(f.args.tokenId);
-    });
-
-    if (heldTokenIds.size === 0) {
-      app.innerHTML = `
-        <h1>Manage</h1>
-        <em>
-          <p style='color: #f08000'>
-            Could not find NFTs for ${account.address}
-          </p>
-        </em>`;
-      return;
-    }
-
     app.style.maxWidth = "100%";
-
     const yourNfts = document.getElementById("your-nfts");
     const redeemNfts = document.getElementById("redeem-nfts");
     const redeemStatusText = document.getElementById("redeem-status-text");
@@ -154,27 +200,13 @@ export const Manage = {
     const beginVesting = document.getElementById("begin-vesting");
     const collectRewards = document.getElementById("collect-rewards");
     const rewardStatusText = document.getElementById("reward-status-text");
+    const tokenOptions = document.getElementById("token-options");
+    const collectableRewardsList = document.getElementById(
+      "collectable-rewards-list"
+    );
 
-    const tokenIdsWithinTiers = new Map();
-    await Promise.all(
-      Array.from(heldTokenIds.keys()).map((id) =>
-        readContract({
-          address: JB721StakingDelegate,
-          abi: [
-            parseAbiItem(
-              "function tierIdOfToken(uint256 _tokenId) pure returns (uint256)"
-            ),
-          ],
-          functionName: "tierIdOfToken",
-          args: [id],
-        }).then((tier) => {
-          tokenIdsWithinTiers.set(tier, [
-            id,
-            ...(tokenIdsWithinTiers.get(tier) ?? []),
-          ]);
-        })
-      )
-    ).catch((e) => console.error(e));
+    const prevRoundButton = document.getElementById("prev-round");
+    const nextRoundButton = document.getElementById("next-round");
 
     const tierDataMap = new Map();
     await Promise.all(
@@ -209,211 +241,218 @@ export const Manage = {
       ],
     });
 
-    // Render tiers and tokens
-    Array.from(tokenIdsWithinTiers.entries()).forEach(
-      async ([tierId, tokenIds]) => {
-        const tierData = tierDataMap.get(tierId);
-        let name, description, image, external_url;
-        if (!tierData.resolvedUri) {
-          ({ name, description, image, external_url } = await fetch(
-            IPFS_BASE_URL + JBIpfsDecode(tierData.encodedIPFSUri)
-          )
-            .then((res) => res.json())
-            .catch((e) =>
-              console.error(
-                "Encountered an error while reading NFT data from IPFS.",
-                e
-              )
-            ));
-        } else {
-          const resolvedUriMatch = tierData.resolvedUri.match(BASE64_REGEXP);
-          if (resolvedUriMatch) {
-            let base64UriStr = resolvedUriMatch[3]
-              .replace(/-/g, "+")
-              .replace(/_/g, "/"); // Convert base64url to standard base64 if needed
-            while (base64UriStr.length % 4) base64UriStr += "="; // Add padding if needed
-            ({ name, description, image, external_url } = JSON.parse(
-              atob(base64UriStr)
-            ));
-          } else
-            console.error(
-              "Could not match resolvedUri, using encodedIPFSUri",
-              tierId.resolvedUri
-            );
-        }
-
-        const tierDiv = document.createElement("div");
-        tierDiv.className = "tier-div";
-
-        // Add image
-        if (image) {
-          const mediaDiv = document.createElement("div");
-          tierDiv.appendChild(mediaDiv);
-          mediaDiv.className = "media-div";
-
-          const imageMatch = image.match(BASE64_REGEXP);
-          if (!imageMatch) {
-            fetch(image)
-              .then((res) => {
-                const mediaType = res.headers.get("Content-Type");
-                if (mediaType.startsWith("image/")) {
-                  const img = document.createElement("img");
-                  img.src = image;
-                  img.alt = `${
-                    tier.name ? tier.name : nftSymbol.result
-                  } artwork`;
-                  mediaDiv.appendChild(img);
-                } else if (mediaType.startsWith("video/")) {
-                  const video = document.createElement("video");
-                  video.controls = true;
-                  video.src = image;
-                  mediaDiv.appendChild(video);
-                } else if (mediaType.startsWith("text/")) {
-                  res.text().then((text) => {
-                    const div = document.createElement("div");
-                    div.textContent = text;
-                    mediaDiv.appendChild(div);
-                  });
-                }
-              })
-              .catch((e) => console.error(e));
+    /**
+     * @description Render NFT Tiers and tokens from the tokenIdsWithinTiers mapping
+     */
+    function renderTiers() {
+      yourNfts.innerHTML = "";
+      Array.from(tokenIdsWithinTiers.entries()).forEach(
+        async ([tierId, tokenIds]) => {
+          const tierData = tierDataMap.get(tierId);
+          let name, description, image, external_url;
+          if (!tierData.resolvedUri) {
+            ({ name, description, image, external_url } = await fetch(
+              IPFS_BASE_URL + JBIpfsDecode(tierData.encodedIPFSUri)
+            )
+              .then((res) => res.json())
+              .catch((e) =>
+                console.error(
+                  "Encountered an error while reading NFT data from IPFS.",
+                  e
+                )
+              ));
           } else {
-            let base64SvgStr = imageMatch[3]
-              .replace(/-/g, "+")
-              .replace(/_/g, "/"); // Convert base64url to standard base64
-            while (base64SvgStr.length % 4) base64SvgStr += "="; // Add padding if needed
-            const svgString = atob(base64SvgStr);
-
-            // Parse to avoid security risks of arbitrary HTML injection (SVG only)
-            const parser = new DOMParser();
-            const svgElement = parser.parseFromString(
-              svgString,
-              "image/svg+xml"
-            ).documentElement;
-
-            svgElement.setAttribute("width", "100%");
-            svgElement.setAttribute("height", "100%");
-            svgElement.setAttribute("viewBox", "0 0 120 120");
-
-            // Handle nested SVG if necessary
-            const nestedSvg = svgElement.querySelector("svg");
-            if (nestedSvg) {
-              nestedSvg.setAttribute("viewBox", "0 0 120 120");
-              nestedSvg.setAttribute("width", "100%");
-              nestedSvg.setAttribute("height", "100%");
-            }
-
-            mediaDiv.appendChild(svgElement);
+            const resolvedUriMatch = tierData.resolvedUri.match(BASE64_REGEXP);
+            if (resolvedUriMatch) {
+              let base64UriStr = resolvedUriMatch[3]
+                .replace(/-/g, "+")
+                .replace(/_/g, "/"); // Convert base64url to standard base64 if needed
+              while (base64UriStr.length % 4) base64UriStr += "="; // Add padding if needed
+              ({ name, description, image, external_url } = JSON.parse(
+                atob(base64UriStr)
+              ));
+            } else
+              console.error(
+                "Could not match resolvedUri, using encodedIPFSUri",
+                tierId.resolvedUri
+              );
           }
-        }
 
-        // Initialize textdiv
-        const textDiv = document.createElement("div");
-        textDiv.style.textAlign = "center";
-        textDiv.style.marginLeft = "20px";
+          const tierDiv = document.createElement("div");
+          tierDiv.className = "tier-div";
 
-        // Add title
-        const tierName = document.createElement("p");
-        tierName.innerText = `Tier ${tierId.toLocaleString()}${
-          name ? ": " + name : ""
-        }`;
-        tierName.style.fontWeight = "bold";
-        tierName.style.margin = "5px 0px";
-        textDiv.appendChild(tierName);
+          // Add image
+          if (image) {
+            const mediaDiv = document.createElement("div");
+            tierDiv.appendChild(mediaDiv);
+            mediaDiv.className = "media-div";
 
-        // Add 'select all' checkbox
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.oninput = () =>
-          tierDiv
-            .querySelectorAll("input[type='checkbox']")
-            .forEach((box) => (box.checked = checkbox.checked));
-        textDiv.appendChild(checkbox);
+            const imageMatch = image.match(BASE64_REGEXP);
+            if (!imageMatch) {
+              fetch(image)
+                .then((res) => {
+                  const mediaType = res.headers.get("Content-Type");
+                  if (mediaType.startsWith("image/")) {
+                    const img = document.createElement("img");
+                    img.src = image;
+                    img.alt = `${
+                      tier.name ? tier.name : nftSymbol.result
+                    } artwork`;
+                    mediaDiv.appendChild(img);
+                  } else if (mediaType.startsWith("video/")) {
+                    const video = document.createElement("video");
+                    video.controls = true;
+                    video.src = image;
+                    mediaDiv.appendChild(video);
+                  } else if (mediaType.startsWith("text/")) {
+                    res.text().then((text) => {
+                      const div = document.createElement("div");
+                      div.textContent = text;
+                      mediaDiv.appendChild(div);
+                    });
+                  }
+                })
+                .catch((e) => console.error(e));
+            } else {
+              let base64SvgStr = imageMatch[3]
+                .replace(/-/g, "+")
+                .replace(/_/g, "/"); // Convert base64url to standard base64
+              while (base64SvgStr.length % 4) base64SvgStr += "="; // Add padding if needed
+              const svgString = atob(base64SvgStr);
 
-        // Add selected indicator
-        const selectedSpan = document.createElement("span");
-        selectedSpan.innerText = `(0/${tokenIds.length}) selected`;
-        tierDiv.oninput = () =>
-          (selectedSpan.innerText = `(${
-            Array.from(
-              tierDiv.querySelectorAll("li input[type='checkbox']").values()
-            ).filter((c) => c.checked).length
-          }/${tokenIds.length}) selected`);
-        textDiv.appendChild(selectedSpan);
-        textDiv.onclick = (e) => {
-          if (e.target != checkbox) checkbox.click();
-        };
-        textDiv.style.cursor = "pointer";
+              // Parse to avoid security risks of arbitrary HTML injection (SVG only)
+              const parser = new DOMParser();
+              const svgElement = parser.parseFromString(
+                svgString,
+                "image/svg+xml"
+              ).documentElement;
 
-        tierDiv.appendChild(textDiv);
+              svgElement.setAttribute("width", "100%");
+              svgElement.setAttribute("height", "100%");
+              svgElement.setAttribute("viewBox", "0 0 120 120");
 
-        const descriptionParagraph = document.createElement("p");
-        descriptionParagraph.innerText = description;
-        descriptionParagraph.className = "description";
-        descriptionParagraph.style.flexGrow = "1";
-        descriptionParagraph.style.marginLeft = "20px";
-        tierDiv.appendChild(descriptionParagraph);
+              // Handle nested SVG if necessary
+              const nestedSvg = svgElement.querySelector("svg");
+              if (nestedSvg) {
+                nestedSvg.setAttribute("viewBox", "0 0 120 120");
+                nestedSvg.setAttribute("width", "100%");
+                nestedSvg.setAttribute("height", "100%");
+              }
 
-        // Add price and voting power
-        const statsList = document.createElement("ul");
-        statsList.style.marginRight = "10px";
-        const priceLi = document.createElement("li");
-        priceLi.textContent = `${formatUnits(
-          tierData.price,
-          Number(terminalTokenDecimals.result)
-        )} ${terminalTokenSymbol.result}`;
-        statsList.appendChild(priceLi);
-        if (tierData.votingUnits) {
-          const votesLi = document.createElement("li");
-          votesLi.textContent = `${formatLargeBigInt(
-            tierData.votingUnits
-          )} votes`;
-          statsList.appendChild(votesLi);
-        }
-        tierDiv.appendChild(statsList);
+              mediaDiv.appendChild(svgElement);
+            }
+          }
 
-        // Add toggle to show tokens
-        const toggleTokenViewButton = document.createElement("button");
-        toggleTokenViewButton.innerText = "Show NFTs";
-        toggleTokenViewButton.onclick = () => {
-          let tokenList = toggleTokenViewButton.nextSibling;
-          tokenList.hidden = !tokenList.hidden;
-          toggleTokenViewButton.innerText = tokenList.hidden
-            ? "Show NFTs"
-            : "Hide NFTs";
-        };
-        tierDiv.appendChild(toggleTokenViewButton);
+          // Initialize textdiv
+          const textDiv = document.createElement("div");
+          textDiv.style.textAlign = "center";
+          textDiv.style.marginLeft = "20px";
 
-        // Add token IDs within tier
-        const tokensInTier = document.createElement("ul");
-        tokensInTier.style.listStyle = "none";
-        tokenIds.forEach((tokenId) => {
-          const tokenLi = document.createElement("li");
+          // Add title
+          const tierName = document.createElement("p");
+          tierName.innerText = `Tier ${tierId.toLocaleString()}${
+            name ? ": " + name : ""
+          }`;
+          tierName.style.fontWeight = "bold";
+          tierName.style.margin = "5px 0px";
+          textDiv.appendChild(tierName);
 
-          const tokenCheckbox = document.createElement("input");
-          tokenCheckbox.type = "checkbox";
-          tokenCheckbox.dataset.tokenId = tokenId;
-          tokenLi.appendChild(tokenCheckbox);
+          // Add 'select all' checkbox
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.oninput = () =>
+            tierDiv
+              .querySelectorAll("input[type='checkbox']")
+              .forEach((box) => (box.checked = checkbox.checked));
+          textDiv.appendChild(checkbox);
 
-          const tokenName = document.createElement("span");
-          tokenName.innerText += `Token #${(
-            tokenId % tierMultiplier
-          ).toLocaleString()}`;
-          tokenLi.appendChild(tokenName);
-
-          tokenLi.style.cursor = "pointer";
-          tokenLi.onclick = (e) => {
-            if (e.target != tokenCheckbox) tokenCheckbox.click();
+          // Add selected indicator
+          const selectedSpan = document.createElement("span");
+          selectedSpan.innerText = `(0/${tokenIds.length}) selected`;
+          tierDiv.oninput = () =>
+            (selectedSpan.innerText = `(${
+              Array.from(
+                tierDiv.querySelectorAll("li input[type='checkbox']").values()
+              ).filter((c) => c.checked).length
+            }/${tokenIds.length}) selected`);
+          textDiv.appendChild(selectedSpan);
+          textDiv.onclick = (e) => {
+            if (e.target != checkbox) checkbox.click();
           };
+          textDiv.style.cursor = "pointer";
 
-          tokensInTier.appendChild(tokenLi);
-        });
-        tokensInTier.hidden = true;
-        tierDiv.appendChild(tokensInTier);
+          tierDiv.appendChild(textDiv);
 
-        yourNfts.appendChild(tierDiv);
-      }
-    );
+          const descriptionParagraph = document.createElement("p");
+          descriptionParagraph.innerText = description;
+          descriptionParagraph.className = "description";
+          descriptionParagraph.style.flexGrow = "1";
+          descriptionParagraph.style.marginLeft = "20px";
+          tierDiv.appendChild(descriptionParagraph);
+
+          // Add price and voting power
+          const statsList = document.createElement("ul");
+          statsList.style.marginRight = "10px";
+          const priceLi = document.createElement("li");
+          priceLi.textContent = `${formatUnits(
+            tierData.price,
+            Number(terminalTokenDecimals.result)
+          )} ${terminalTokenSymbol.result}`;
+          statsList.appendChild(priceLi);
+          if (tierData.votingUnits) {
+            const votesLi = document.createElement("li");
+            votesLi.textContent = `${formatLargeBigInt(
+              tierData.votingUnits
+            )} votes`;
+            statsList.appendChild(votesLi);
+          }
+          tierDiv.appendChild(statsList);
+
+          // Add toggle to show tokens
+          const toggleTokenViewButton = document.createElement("button");
+          toggleTokenViewButton.innerText = "Show NFTs";
+          toggleTokenViewButton.onclick = () => {
+            let tokenList = toggleTokenViewButton.nextSibling;
+            tokenList.hidden = !tokenList.hidden;
+            toggleTokenViewButton.innerText = tokenList.hidden
+              ? "Show NFTs"
+              : "Hide NFTs";
+          };
+          tierDiv.appendChild(toggleTokenViewButton);
+
+          // Add token IDs within tier
+          const tokensInTier = document.createElement("ul");
+          tokensInTier.style.listStyle = "none";
+          tokenIds.forEach((tokenId) => {
+            const tokenLi = document.createElement("li");
+
+            const tokenCheckbox = document.createElement("input");
+            tokenCheckbox.type = "checkbox";
+            tokenCheckbox.dataset.tokenId = tokenId;
+            tokenLi.appendChild(tokenCheckbox);
+
+            const tokenName = document.createElement("span");
+            tokenName.innerText += `Token #${(
+              tokenId % tierMultiplier
+            ).toLocaleString()}`;
+            tokenLi.appendChild(tokenName);
+
+            tokenLi.style.cursor = "pointer";
+            tokenLi.onclick = (e) => {
+              if (e.target != tokenCheckbox) tokenCheckbox.click();
+            };
+
+            tokensInTier.appendChild(tokenLi);
+          });
+          tokensInTier.hidden = true;
+          tierDiv.appendChild(tokensInTier);
+
+          yourNfts.appendChild(tierDiv);
+        }
+      );
+    }
+
+    renderTiers();
 
     const [
       stakingToken,
@@ -456,20 +495,6 @@ export const Manage = {
         },
       ],
     });
-
-    console.log(
-      stakingToken,
-      startingBlock,
-      roundDuration,
-      vestingRounds,
-      currentRound
-    );
-
-    distributorStats.innerHTML = `
-      <li>Blocks per round: ${roundDuration.result.toLocaleString()}</li>
-      <li>Current round: ${currentRound.result.toLocaleString()}</li>
-      <li>Rounds until you can collect: ${vestingRounds.result.toLocaleString()}</li>
-    `;
 
     function getSelectedTokenIds() {
       return Array.from(
@@ -523,6 +548,7 @@ export const Manage = {
         return;
       }
 
+      redeemNfts.innerText = "Redeeming...";
       try {
         const hexString = encodeAbiParameters(
           parseAbiParameters("bytes32, bytes4, uint256[]"),
@@ -562,28 +588,91 @@ export const Manage = {
       } finally {
         redeemNfts.disabled = false;
         redeemNfts.innerText = "Redeem selected NFTs";
+        await updateTokenIdsAndTiers();
+        renderTiers();
       }
     };
 
-    beginVesting.onclick = async () => {
-      beginVesting.innerText = "Claiming...";
-      beginVesting.disabled = true;
-      let availableToBeginVesting = new Set(heldTokenIds.keys());
+    distributorStats.innerHTML = `
+      <li>Blocks per round: ${roundDuration.result.toLocaleString()}</li>
+      <li>Current round: ${currentRound.result.toLocaleString()}</li>
+      <li>Rounds until you can collect: ${vestingRounds.result.toLocaleString()}</li>
+    `;
+    const defaultBeginVestingText = `Claim selected tokens for round ${currentRound.result.toLocaleString()}`;
+    beginVesting.innerText = defaultBeginVestingText;
 
+    async function renderDistributorTokenCheckbox(tokenAddress) {
+      const symbol = await readContract({
+        address: tokenAddress,
+        abi: [parseAbiItem("function symbol() view returns (string)")],
+        functionName: "symbol",
+      }).catch((e) => {
+        console.error(e);
+        return "???";
+      });
+
+      const tokenCheckboxListItem = document.createElement("li");
+
+      const tokenCheckbox = document.createElement("input");
+      tokenCheckbox.type = "checkbox";
+      tokenCheckbox.dataset.tokenAddress = tokenAddress;
+      tokenCheckboxListItem.appendChild(tokenCheckbox);
+
+      const tokenLink = document.createElement("a");
+      tokenLink.href = `https://${
+        TESTNET ? "goerli." : ""
+      }etherscan.io/token/${tokenAddress}`;
+      tokenLink.innerText = `${tokenAddress.substring(
+        0,
+        6
+      )}…${tokenAddress.substring(tokenAddress.length - 4)}`;
+
+      const tokenLabel = document.createElement("span");
+      tokenLabel.innerText = ` ${symbol} `;
+      tokenLabel.appendChild(tokenLink);
+      tokenCheckboxListItem.appendChild(tokenLabel);
+
+      tokenOptions.appendChild(tokenCheckboxListItem);
+    }
+    if (distributorTokens.length > 0) {
+      tokenOptions.innerHTML = "";
+      distributorTokens.forEach((t) => renderDistributorTokenCheckbox(t));
+    }
+
+    function getSelectedDistributorTokens() {
+      return Array.from(
+        tokenOptions.querySelectorAll("input[type='checkbox']:checked")
+      )
+        .map((c) => c.dataset.tokenAddress)
+        .filter((c) => c);
+    }
+
+    beginVesting.onclick = async () => {
+      // Check if the user has selected ERC-20 tokens held by the distributor
+      const selectedDistributorTokens = getSelectedDistributorTokens();
+      console.log("Selected distributor tokens:", selectedDistributorTokens);
+      if (selectedDistributorTokens.length === 0) {
+        rewardStatusText.innerText = "No tokens selected.";
+        return;
+      }
+
+      // Check which tokens are available to begin vesting
+      let availableToBeginVesting = new Set(heldTokenIds.keys());
       const currentRoundStartBlock =
         startingBlock.result + roundDuration.result * currentRound.result;
       claimedEvents.forEach((e) => {
-        console.log(e.blockNumber, currentRoundStartBlock);
         if (e.blockNumber > currentRoundStartBlock)
           availableToBeginVesting.delete(e.args.tokenId);
       });
 
       if (availableToBeginVesting.size === 0) {
         rewardStatusText.innerText = "No NFTs to claim with this round.";
-        beginVesting.innerText = "Claim future rewards";
-        beginVesting.disabled = false;
         return;
       }
+
+      // Disable claiming button
+      beginVesting.innerText = "Claiming...";
+      beginVesting.disabled = true;
 
       try {
         const { hash } = await writeContract({
@@ -594,7 +683,7 @@ export const Manage = {
             ),
           ],
           functionName: "beginVesting",
-          args: [[...availableToBeginVesting], distributorTokens],
+          args: [[...availableToBeginVesting], selectedDistributorTokens],
         });
 
         await waitForTransaction({ hash });
@@ -605,55 +694,119 @@ export const Manage = {
           "Failed to begin vesting. Check the console.";
       } finally {
         beginVesting.disabled = false;
-        beginVesting.innerText = "Claim future rewards";
+        beginVesting.innerText = defaultBeginVestingText;
       }
+    };
+
+    /**
+     * @type {Map<BigInt, {tokenIds: BigInt[], tokenMap: Map<String, BigInt>}>}
+     * @description A map where the keys are vesting release rounds and the values are objects.
+     * Each object has a 'tokenIds' property which is an array of NFT token IDs and a 'tokenMap' property which is a map of token addresses to token vesting amounts.
+     */
+    let collectableRewards;
+    /** @description Update the collectableRewards map. Wrap in try-catch. */
+    async function updateCollectableRewards() {
+      collectableRewards = new Map();
+      await Promise.all(
+        claimedEvents.map(async (e) => {
+          const { tokenId, amount, token, vestingReleaseRound } = e.args;
+          if (
+            heldTokenIds.has(tokenId) &&
+            vestingReleaseRound <= currentRound.result &&
+            amount > 0n
+          ) {
+            const tokenVesting = await readContract({
+              address: JB721StakingDistributor,
+              abi: [
+                parseAbiItem(
+                  "function tokenVesting(uint256, uint256, address) view returns (uint256)"
+                ),
+              ],
+              functionName: "tokenVesting",
+              args: [tokenId, vestingReleaseRound, token],
+            });
+
+            if (tokenVesting > 0n) {
+              const x = collectableRewards.get(vestingReleaseRound);
+              let tokenMap = x?.tokenMap ? x?.tokenMap : new Map();
+              if (tokenMap.has(token))
+                tokenMap.set(token, tokenMap.get(token) + tokenVesting);
+              else tokenMap.set(token, tokenVesting);
+              collectableRewards.set(vestingReleaseRound, {
+                tokenIds: [tokenId, ...(x?.tokenIds ?? [])],
+                tokenMap,
+              });
+            }
+          }
+        })
+      );
+    }
+    await updateCollectableRewards();
+
+    let selectedRewardRound = collectableRewards?.keys()?.next()?.value;
+    let collectRewardsTextDefault = `Collect rewards from round ${selectedRewardRound.toLocaleString()}`;
+    collectRewards.innerText = collectRewardsTextDefault;
+    function displayCollectableRewards() {
+      collectableRewardsList.innerHTML = "";
+
+      const header = document.createElement("p");
+      header.textContent = `Rewards for round ${selectedRewardRound}`;
+      collectableRewardsList.appendChild(header);
+
+      const rewardsObj = collectableRewards.get(selectedRewardRound);
+
+      const rewardsList = document.createElement("ul");
+      rewardsObj.tokenMap.forEach((amount, token) => {
+        const rewardItem = document.createElement("li");
+        rewardItem.textContent = `${token}: ${amount}`;
+        rewardsList.appendChild(rewardItem);
+      });
+      collectableRewardsList.appendChild(rewardsList);
+    }
+    displayCollectableRewards()
+
+    prevRoundButton.onclick = () => {
+      let keys = Array.from(collectableRewards.keys());
+      let index = keys.indexOf(selectedRewardRound);
+      selectedRewardRound = index > 0 ? keys[index - 1] : keys[0];
+      collectRewardsTextDefault = `Collect rewards from round ${selectedRewardRound.toLocaleString()}`;
+      displayCollectableRewards();
+    };
+
+    nextRoundButton.onclick = () => {
+      let keys = Array.from(collectableRewards.keys());
+      let index = keys.indexOf(selectedRewardRound);
+      selectedRewardRound =
+        index < keys.length - 1 ? keys[index + 1] : keys[keys.length - 1];
+      collectRewardsTextDefault = `Collect rewards from round ${selectedRewardRound.toLocaleString()}`;
+      displayCollectableRewards();
     };
 
     collectRewards.onclick = async () => {
       collectRewards.disabled = true;
       collectRewards.innerText = "Finding available rewards...";
-      let availableRewards;
 
       try {
-        availableRewards = new Map();
-        claimedEvents.forEach((e) => {
-          const { tokenId, amount, token, vestingReleaseRound } = e.args;
-          if (
-            heldTokenIds.has(tokenId) &&
-            vestingReleaseRound <= currentRound.result &&
-            amount != 0n
-          ) {
-            const x = availableRewards.get(vestingReleaseRound);
-            availableRewards.set(vestingReleaseRound, {
-              tokenIds: [tokenId, ...(x?.tokenIds ?? [])],
-              tokens: [token, ...(x?.tokens ?? [])],
-              totalAmount: amount + (x?.totalAmount ?? 0n),
-            });
-          }
-        });
+        await updateCollectableRewards();
+        displayCollectableRewards();
       } catch (e) {
         console.error(e);
         rewardStatusText.innerText =
           "Error while checking available rewards. See the console.";
-        collectRewards.innerText = "Collect claimed rewards";
+        collectRewards.innerText = collectRewardsTextDefault;
         collectRewards.disabled = false;
         return;
       }
 
-      if (!availableRewards || availableRewards.size === 0) {
+      if (!collectableRewards || collectableRewards.size === 0) {
         rewardStatusText.innerText = "No rewards available.";
-        collectRewards.innerText = "Collect claimed rewards";
+        collectRewards.innerText = collectRewardsTextDefault;
         collectRewards.disabled = false;
         return;
       }
 
-      console.log(availableRewards);
-      // TODO: This will eventually give the user the option of which cycles they'd like to collect
-      const claimCycle = availableRewards.keys().next().value;
-      rewardStatusText.innerText = `Claiming rewards for cycle ${availableRewards
-        .keys()
-        .next()
-        .value.toLocaleString()}`;
+      console.log(collectableRewards);
+      rewardStatusText.innerText = `Claiming rewards for round ${selectedRewardRound.toLocaleString()}`;
 
       try {
         await writeContract({
@@ -665,9 +818,9 @@ export const Manage = {
             ),
           ],
           args: [
-            availableRewards.get(claimCycle).tokenIds,
-            availableRewards.get(claimCycle).tokens,
-            claimCycle,
+            collectableRewards.get(selectedRewardRound).tokenIds,
+            [...collectableRewards.get(selectedRewardRound).tokenMap.keys()],
+            selectedRewardRound,
           ],
         });
         rewardStatusText.innerText = "Success.";
@@ -675,7 +828,7 @@ export const Manage = {
         console.error(e);
         redeemStatusText.innerText = "Failed to claim rewards. See console.";
       } finally {
-        collectRewards.innerText = "Collect claimed rewards";
+        collectRewards.innerText = collectRewardsTextDefault;
         collectRewards.disabled = false;
       }
     };
