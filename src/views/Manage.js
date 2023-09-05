@@ -32,6 +32,9 @@ import { JBIpfsDecode, formatLargeBigInt, html } from "../utils";
  * - Remove unneeded code.
  * - Better distributor token data handling (symbols and decimals).
  * - Cleanup and styling.
+ * - Number formatting for rewards by round. Also, make it a table.
+ * - Better cross-chain behavior throughout (get symbol for native token, display the chain somewhere)
+ * - Explain vesting period in frontend.
  */
 
 export const Manage = {
@@ -803,11 +806,6 @@ export const Manage = {
       // TODO: Better handling for symbols and decimals across tokens
       rewardsObj.tokenMap.forEach((amount, token) => {
         const rewardItem = document.createElement("li");
-        console.log(
-          distributorTokenSymbols,
-          token,
-          distributorTokenSymbols.get(token)
-        );
         //TODO: Make this safe (don't user innerHTML)
         rewardItem.innerHTML = `${amount} ${
           distributorTokenSymbols.has(token.toLowerCase())
