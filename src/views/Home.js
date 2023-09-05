@@ -6,15 +6,23 @@ import {
   writeContract,
   switchNetwork,
 } from "@wagmi/core";
-import { TESTNET, payAbi } from "../consts";
+import {
+  BANANAPUS_PROJECT_ID,
+  TESTNET,
+  payAbi,
+  JBDirectory,
+  MAX_RESERVED_RATE,
+} from "../consts";
 import { html } from "../utils";
+import { readContract } from "@wagmi/core";
+import { parseAbiItem } from "viem";
 
 export const Home = {
   render: html`
     <h1>Bananapus</h1>
     <p>
-      <span class="bananapus">bananapus</span> is developing onchain governance
-      and Ethereum L2 solutions for Juicebox organizations.
+      <span class="bananapus">bananapus</span> is building tools to align
+      communities with Juicebox on Ethereum and L2s.
     </p>
     <div id="purchase-section">
       <input id="eth-input" type="number" placeholder="ETH Amount" />
@@ -26,18 +34,17 @@ export const Home = {
         Anyone can buy $NANA above (or on
         <a href="https://juicebox.money/v2/p/488">Juicebox</a>).
       </li>
-      <li>To learn more, read <a href="#/about">About</a>.</li>
       <li>
         To stake your $NANA and earn a share of the network's growth, visit
         <a href="#/stake">Stake</a>.
       </li>
       <li>
-        To manage your stake and collect rewards, visit
+        To manage your staked positions and collect rewards, visit
         <a href="#/manage">Manage</a>.
       </li>
     </ul>
     <p>
-      To get involved, join our
+      To learn more, read <a href="#/about">About</a>. To get involved, join our
       <a href="https://discord.gg/ErQYmth4dS">Discord server</a>.
     </p>
   `,
@@ -57,14 +64,50 @@ export const Home = {
     }
 
     // TODO: Fetch this from contracts.
-    const exchangeRate = 700000;
-    let balance;
+    // const exchangeRate = 700000;
+
+    let exchangeRate, balance;
     try {
-      balance = await fetchBalance({
-        address: account.address,
-      });
-    } catch {
-      console.error("Could not fetch wallet balance.");
+      [exchangeRate, balance] = await Promise.all([
+        readContract({
+          address: JBDirectory,
+          abi: [
+            parseAbiItem(
+              "function controllerOf(uint256) view returns (address)"
+            ),
+          ],
+          functionName: "controllerOf",
+          args: [BigInt(BANANAPUS_PROJECT_ID)],
+        })
+          .then((BananapusJBController) => {
+            console.log(BananapusJBController);
+            return readContract({
+              address: BananapusJBController,
+              abi: [
+                parseAbiItem(
+                  "function currentFundingCycleOf(uint256 _projectId) view returns ((uint256 number, uint256 configuration, uint256 basedOn, uint256 start, uint256 duration, uint256 weight, uint256 discountRate, address ballot, uint256 metadata) fundingCycle, ((bool allowSetTerminals, bool allowSetController, bool pauseTransfers) global, uint256 reservedRate, uint256 redemptionRate, uint256 ballotRedemptionRate, bool pausePay, bool pauseDistributions, bool pauseRedeem, bool pauseBurn, bool allowMinting, bool allowTerminalMigration, bool allowControllerMigration, bool holdFees, bool preferClaimedTokenOverride, bool useTotalOverflowForRedemptions, bool useDataSourceForPay, bool useDataSourceForRedeem, address dataSource, uint256 metadata) metadata)"
+                ),
+              ],
+              functionName: "currentFundingCycleOf",
+              args: [BigInt(BANANAPUS_PROJECT_ID)],
+            });
+          })
+          .then((f) => {
+            console.log("Funding cycle:", f);
+            const payerIssuanceRate = Number(
+              (f[0].weight / BigInt(1e18)) *
+                ((MAX_RESERVED_RATE - f[1].reservedRate) / MAX_RESERVED_RATE)
+            );
+            return payerIssuanceRate;
+          }),
+        fetchBalance({
+          address: account.address,
+        }),
+      ]);
+    } catch (e) {
+      console.error(e);
+      statusMessage.textContent = `Encountered an issue while reading from contracts. See console.`;
+      return;
     }
 
     const updateEstimate = () => {
