@@ -22,17 +22,17 @@ export const Home = {
     <h1>Bananapus</h1>
     <p>
       <span class="bananapus">bananapus</span> is building tools to align
-      communities with Juicebox on Ethereum and L2s.
+      Juicebox communities on Ethereum and L2s.
     </p>
-    <div id="purchase-section">
-      <input id="eth-input" type="number" placeholder="ETH Amount" />
-      <button id="buy-button" disabled>Buy NANA</button>
-    </div>
-    <span id="status-message" style="color: red;"></span>
-    <ul>
+    <ol>
       <li>
-        Anyone can buy $NANA above (or on
-        <a href="https://juicebox.money/v2/p/488">Juicebox</a>).
+        Anyone can buy $NANA below or on
+        <a
+          href="https://${TESTNET
+            ? "goerli."
+            : ""}juicebox.money/v2/p/${BANANAPUS_PROJECT_ID.toLocaleString()}"
+          >Juicebox</a
+        >.
       </li>
       <li>
         To stake your $NANA and earn a share of the network's growth, visit
@@ -42,10 +42,16 @@ export const Home = {
         To manage your staked positions and collect rewards, visit
         <a href="#/manage">Manage</a>.
       </li>
-    </ul>
+    </ol>
+    <div id="purchase-section">
+      <input id="eth-input" type="number" placeholder="ETH Amount" />
+      <button id="buy-button" disabled>Buy NANA</button>
+    </div>
+    <span id="status-message" style="color: red;"></span>
     <p>
       To learn more, read <a href="#/about">About</a>. To get involved, join our
-      <a href="https://discord.gg/ErQYmth4dS">Discord server</a>.
+      <a href="https://discord.gg/ErQYmth4dS">Discord server</a>. This website
+      is experimental. Double check transactions before executing them.
     </p>
   `,
   setup: async () => {
