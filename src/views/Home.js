@@ -7,38 +7,40 @@ import {
   switchNetwork,
 } from "@wagmi/core";
 import { TESTNET, payAbi } from "../consts";
+import { html } from "../utils";
 
 export const Home = {
-  render: `
-<h1>Bananapus</h1>
-<p>
-  <span class="bananapus">bananapus</span> is developing onchain governance and
-  Ethereum L2 solutions for Juicebox organizations.
-</p>
-<div id="purchase-section">
-  <input id="eth-input" type="number" placeholder="ETH Amount" />
-  <button id="buy-button" disabled>Buy NANA</button>
-</div>
-<span id="status-message" style="color: red;"></span>
-<ul>
-  <li>
-    Anyone can buy $NANA above (or on
-    <a href="https://juicebox.money/v2/p/488">Juicebox</a>).
-  </li>
-  <li>To learn more, read <a href="#/about">About</a>.</li>
-  <li>
-    To stake your \$NANA and earn a share of the network's growth, visit
-    <a href="#/stake">Stake</a>.
-  </li>
-  <li>
-    To manage your stake and collect rewards, visit <a href="#/manage">Manage</a>.
-  </li>
-</ul>
-<p>
-  To get involved, join our
-  <a href="https://discord.gg/ErQYmth4dS">Discord server</a>.
-</p>
-`,
+  render: html`
+    <h1>Bananapus</h1>
+    <p>
+      <span class="bananapus">bananapus</span> is developing onchain governance
+      and Ethereum L2 solutions for Juicebox organizations.
+    </p>
+    <div id="purchase-section">
+      <input id="eth-input" type="number" placeholder="ETH Amount" />
+      <button id="buy-button" disabled>Buy NANA</button>
+    </div>
+    <span id="status-message" style="color: red;"></span>
+    <ul>
+      <li>
+        Anyone can buy $NANA above (or on
+        <a href="https://juicebox.money/v2/p/488">Juicebox</a>).
+      </li>
+      <li>To learn more, read <a href="#/about">About</a>.</li>
+      <li>
+        To stake your $NANA and earn a share of the network's growth, visit
+        <a href="#/stake">Stake</a>.
+      </li>
+      <li>
+        To manage your stake and collect rewards, visit
+        <a href="#/manage">Manage</a>.
+      </li>
+    </ul>
+    <p>
+      To get involved, join our
+      <a href="https://discord.gg/ErQYmth4dS">Discord server</a>.
+    </p>
+  `,
   setup: async () => {
     const account = getAccount();
 

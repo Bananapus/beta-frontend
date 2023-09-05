@@ -21,11 +21,10 @@ import {
   TESTNET_PROJECT_ID,
   TESTNET,
 } from "../consts";
-import { JBIpfsDecode, formatLargeBigInt } from "../utils";
-import { erc20ABI } from "@wagmi/core";
+import { JBIpfsDecode, formatLargeBigInt, html } from "../utils";
 
 export const Manage = {
-  render: `
+  render: html`
 <h1>Manage</h1>
 <h2>Your NFTs</h2>
 <div id="your-nfts"></div>
@@ -763,7 +762,7 @@ export const Manage = {
       });
       collectableRewardsList.appendChild(rewardsList);
     }
-    displayCollectableRewards()
+    displayCollectableRewards();
 
     prevRoundButton.onclick = () => {
       let keys = Array.from(collectableRewards.keys());

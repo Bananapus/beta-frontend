@@ -6,7 +6,7 @@ export const BASE64_REGEXP = /^data:(.+?)(;base64)?,(.*)$/;
 export const TESTNET = true;
 export const BANANAPUS_PROJECT_ID = TESTNET ? 601 : 488;
 
-export const TESTNET_PROJECT_ID = 1214
+export const TESTNET_PROJECT_ID = 1214;
 export const JB721StakingDelegate = TESTNET
   ? "0x3281688433Be4409A1E64bD604605a57328db416"
   : "";

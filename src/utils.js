@@ -33,3 +33,5 @@ export function formatLargeBigInt(n) {
 
   return n.toLocaleString();
 }
+
+export const html = String.raw

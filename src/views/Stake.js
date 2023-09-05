@@ -21,27 +21,27 @@ import {
   IPFS_BASE_URL,
   BASE64_REGEXP,
 } from "../consts";
-import { JBIpfsDecode, formatLargeBigInt } from "../utils";
+import { JBIpfsDecode, formatLargeBigInt, html } from "../utils";
 
 export const Stake = {
-  render: `
-<h1>Stake</h1>
-<dialog id="nft-info-dialog"></dialog>
-<div id="stake-container">
-  <div id="tiers-menu"></div>
-  <div id="cart-menu">
-    <h2>Your Cart</h2>
-    <ul id="cart-items"></ul>
-    <ul>
-      <li id="user-balance"></li>
-      <li id="cart-total">Cart Total: -</li>
-      <li id="cart-status-text" style="font-style: italic"></li>
-    </ul>
-    <button id="reset-cart-button">Reset</button>
-    <button id="buy-button">Buy</button>
-  </div>
-</div>
-`,
+  render: html`
+    <h1>Stake</h1>
+    <dialog id="nft-info-dialog"></dialog>
+    <div id="stake-container">
+      <div id="tiers-menu"></div>
+      <div id="cart-menu">
+        <h2>Your Cart</h2>
+        <ul id="cart-items"></ul>
+        <ul>
+          <li id="user-balance"></li>
+          <li id="cart-total">Cart Total: -</li>
+          <li id="cart-status-text" style="font-style: italic"></li>
+        </ul>
+        <button id="reset-cart-button">Reset</button>
+        <button id="buy-button">Buy</button>
+      </div>
+    </div>
+  `,
   setup: async () => {
     const app = document.getElementById("app");
     const account = getAccount();
@@ -527,7 +527,7 @@ export const Stake = {
 
               cartStatusText.innerText = "Approval transaction pending...";
               await waitForTransaction({ hash, confirmations: 1 });
-              currentAllowance = cartTotalCost
+              currentAllowance = cartTotalCost;
             }
           } catch (e) {
             console.error(e);
