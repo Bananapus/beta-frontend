@@ -23,30 +23,50 @@ import {
 } from "../consts";
 import { JBIpfsDecode, formatLargeBigInt, html } from "../utils";
 
+/**
+ * TODO:
+ * - Break down into functions for rendering redeem section, claim section, and collect section.
+ * - Update names to reflect breakdown.
+ * - Add status text for collect section.
+ * - Make more promises concurrent.
+ * - Remove unneeded code.
+ * - Better distributor token data handling (symbols and decimals).
+ * - Cleanup and styling.
+ */
+
 export const Manage = {
   render: html`
-<h1>Manage</h1>
-<h2>Your NFTs</h2>
-<div id="your-nfts"></div>
-<p>Select and redeem NFTs to reclaim your funds. This burns your NFTs.</p>
-<i><p id="redeem-status-text"></p></i>
-<button id="redeem-nfts">Redeem selected NFTs</button>
-<h2>Rewards</h2>
-<p>
-  Bananapus distributes ERC-20 rewards in rounds. The more NFTs you hold, the
-  more rewards you can claim each round. You can stake a claim in a future round
-  or collect rewards you've already claimed below.
-</p>
-<ul id="distributor-stats"></ul>
-<p>Available tokens:</p>
-<ul id="token-options"><p>No tokens found.</p></ul>
-<i><p id="reward-status-text"></p></i>
-<button id="begin-vesting">Claim future rewards</div>
-<button id="collect-rewards">Collect claimed rewards</button>
-<div id="collectable-rewards-list"></div>
-<button id="prev-round">Previous Round</button>
-<button id="next-round">Next Round</button>
-`,
+    <h1>Manage</h1>
+    <div id="redeem-section">
+      <h2>Redeem NFTs</h2>
+      <div id="your-nfts"></div>
+      <p>Select and redeem NFTs to reclaim your funds. This burns your NFTs.</p>
+      <i><p id="redeem-status-text"></p></i>
+      <button id="redeem-nfts">Redeem selected NFTs</button>
+    </div>
+    <div id="claim-section">
+      <h2>Claim Rewards</h2>
+      <p id="claim-description">
+        Bananapus rewards are released in rounds. The more NFTs you hold, the
+        more rewards you can claim each round. You can claim rewards in a future
+        round below.
+      </p>
+      <p>Tokens available to claim:</p>
+      <ul id="token-options">
+        <p>No tokens found.</p>
+      </ul>
+      <i><p id="reward-status-text"></p></i>
+      <button id="begin-vesting">Claim selected tokens</button>
+    </div>
+    <div id="collect-section">
+      <h2>Collect Rewards</h2>
+      <p>Collect rewards you've already claimed below.</p>
+      <button id="prev-round">Previous Round</button>
+      <button id="next-round">Next Round</button>
+      <div id="collectable-rewards-list"></div>
+      <button id="collect-rewards">Collect claimed rewards</button>
+    </div>
+  `,
   setup: async () => {
     const account = getAccount();
     const app = document.getElementById("app");
@@ -63,7 +83,16 @@ export const Manage = {
 
     const publicClient = getPublicClient();
 
+    /**
+     * @type {Map<BigInt, BigInt>} heldTokenIds
+     * @description A map where the keys are token IDs and the values are block numbers.
+     */
     let heldTokenIds = new Map();
+
+    /**
+     * @type {Map<BigInt, BigInt[]>} tokenIdsWithinTiers
+     * @description A map where the keys are tier IDs and the values are arrays of token IDs.
+     */
     let tokenIdsWithinTiers = new Map();
     async function updateTokenIdsAndTiers() {
       heldTokenIds = new Map();
@@ -185,27 +214,10 @@ export const Manage = {
 
     console.log("Claim events:", claimedEvents);
 
-    // Unique token addresses
-    const distributorTokens = [
-      ...new Set(erc20TransfersToDistributor.map((t) => t.address)),
-    ];
-
     app.style.maxWidth = "100%";
     const yourNfts = document.getElementById("your-nfts");
     const redeemNfts = document.getElementById("redeem-nfts");
     const redeemStatusText = document.getElementById("redeem-status-text");
-
-    const distributorStats = document.getElementById("distributor-stats");
-    const beginVesting = document.getElementById("begin-vesting");
-    const collectRewards = document.getElementById("collect-rewards");
-    const rewardStatusText = document.getElementById("reward-status-text");
-    const tokenOptions = document.getElementById("token-options");
-    const collectableRewardsList = document.getElementById(
-      "collectable-rewards-list"
-    );
-
-    const prevRoundButton = document.getElementById("prev-round");
-    const nextRoundButton = document.getElementById("next-round");
 
     const tierDataMap = new Map();
     await Promise.all(
@@ -592,14 +604,38 @@ export const Manage = {
       }
     };
 
-    distributorStats.innerHTML = `
-      <li>Blocks per round: ${roundDuration.result.toLocaleString()}</li>
-      <li>Current round: ${currentRound.result.toLocaleString()}</li>
-      <li>Rounds until you can collect: ${vestingRounds.result.toLocaleString()}</li>
-    `;
-    const defaultBeginVestingText = `Claim selected tokens for round ${currentRound.result.toLocaleString()}`;
+    const beginVesting = document.getElementById("begin-vesting");
+    const rewardStatusText = document.getElementById("reward-status-text");
+    const tokenOptions = document.getElementById("token-options");
+    const claimDescription = document.getElementById("claim-description");
+
+    claimDescription.innerText = `Bananapus rewards are released in rounds, which last ${roundDuration.result.toLocaleString()} blocks. We are currently in round ${currentRound.result.toLocaleString()}. The more NFTs you hold, the more rewards you can claim. It takes ${vestingRounds.result.toLocaleString()} rounds for rewards to become available, meaning you'll be able to collect rewards you claim now in round ${(
+      currentRound.result + vestingRounds.result
+    ).toLocaleString()}`;
+
+    const defaultBeginVestingText = `Claim selected tokens for round ${(
+      currentRound.result + vestingRounds.result
+    ).toLocaleString()}`;
     beginVesting.innerText = defaultBeginVestingText;
 
+    // Unique token addresses
+    const distributorTokens = [
+      ...new Set(erc20TransfersToDistributor.map((t) => t.address)),
+    ];
+
+    if (distributorTokens.length === 0) {
+      document.getElementById("claim-section").innerHTML = html`<h2>
+          Claim Rewards
+        </h2>
+        <p>No claimable tokens found.</p>`;
+      return;
+    }
+
+    /**
+     * @type {Map<String, String>} distributorTokenSymbols
+     * @description A map where the keys are token addresses and the values are token symbols.
+     */
+    const distributorTokenSymbols = new Map();
     async function renderDistributorTokenCheckbox(tokenAddress) {
       const symbol = await readContract({
         address: tokenAddress,
@@ -610,6 +646,7 @@ export const Manage = {
         return "???";
       });
 
+      distributorTokenSymbols.set(tokenAddress, symbol);
       const tokenCheckboxListItem = document.createElement("li");
 
       const tokenCheckbox = document.createElement("input");
@@ -635,7 +672,9 @@ export const Manage = {
     }
     if (distributorTokens.length > 0) {
       tokenOptions.innerHTML = "";
-      distributorTokens.forEach((t) => renderDistributorTokenCheckbox(t));
+      await Promise.all(
+        distributorTokens.map((t) => renderDistributorTokenCheckbox(t))
+      );
     }
 
     function getSelectedDistributorTokens() {
@@ -697,6 +736,12 @@ export const Manage = {
       }
     };
 
+    const collectRewards = document.getElementById("collect-rewards");
+    const collectableRewardsList = document.getElementById(
+      "collectable-rewards-list"
+    );
+    const prevRoundButton = document.getElementById("prev-round");
+    const nextRoundButton = document.getElementById("next-round");
     /**
      * @type {Map<BigInt, {tokenIds: BigInt[], tokenMap: Map<String, BigInt>}>}
      * @description A map where the keys are vesting release rounds and the values are objects.
@@ -755,9 +800,26 @@ export const Manage = {
       const rewardsObj = collectableRewards.get(selectedRewardRound);
 
       const rewardsList = document.createElement("ul");
+      // TODO: Better handling for symbols and decimals across tokens
       rewardsObj.tokenMap.forEach((amount, token) => {
         const rewardItem = document.createElement("li");
-        rewardItem.textContent = `${token}: ${amount}`;
+        console.log(
+          distributorTokenSymbols,
+          token,
+          distributorTokenSymbols.get(token)
+        );
+        //TODO: Make this safe (don't user innerHTML)
+        rewardItem.innerHTML = `${amount} ${
+          distributorTokenSymbols.has(token.toLowerCase())
+            ? distributorTokenSymbols.get(token.toLowerCase())
+            : "???"
+        } (<a href="https://${
+          TESTNET ? "goerli." : ""
+        }etherscan.io/token/${token}">${token.substring(
+          0,
+          6
+        )}…${token.substring(token.length - 4)}</a>)`;
+        distributorTokenSymbols.get(token);
         rewardsList.appendChild(rewardItem);
       });
       collectableRewardsList.appendChild(rewardsList);
